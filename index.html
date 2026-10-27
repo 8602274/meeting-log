@@ -183,6 +183,17 @@ label.f{display:block;font-size:13px;color:var(--sub);margin:12px 0 6px;font-wei
 .toast{position:fixed;left:50%;bottom:150px;transform:translateX(-50%);background:#222;color:#fff;
   padding:10px 16px;border-radius:10px;font-size:14px;z-index:99;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.on{opacity:.92}
+/* 자동 입력 */
+.autoRow{display:flex;gap:8px;margin-bottom:12px}
+.autoRow .btn{flex:1;padding:12px 8px;font-size:14px}
+input.auto,textarea.auto{background:#fff7d1;border-color:#f59e0b}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) input.auto, :root:not([data-theme="light"]) textarea.auto{background:#3a2f0b} }
+:root[data-theme="dark"] input.auto,:root[data-theme="dark"] textarea.auto{background:#3a2f0b}
+#ocrBar{display:none;margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--accent-soft);color:var(--text);font-size:13px;line-height:1.6}
+#ocrBar a{color:var(--accent);font-weight:700;cursor:pointer}
+#ocrBar pre{white-space:pre-wrap;font:inherit;font-size:12px;color:var(--sub);margin:8px 0 0;max-height:200px;overflow:auto}
+#textSheet{z-index:70}
+.drop{outline:3px dashed var(--accent);outline-offset:-10px}
 #viewer{position:fixed;inset:0;z-index:80;background:#000;display:none;align-items:center;justify-content:center}
 #viewer.on{display:flex}
 #viewer img{max-width:100%;max-height:100%;transition:transform .2s}
@@ -255,6 +266,11 @@ label.f{display:block;font-size:13px;color:var(--sub);margin:12px 0 6px;font-wei
       <button class="btn block" id="btnCsv">📊 CSV 내려받기</button>
     </div>
     <div class="panel">
+      <h3>명함 자동 인식</h3>
+      <label style="display:flex;gap:10px;align-items:center;font-size:15px"><input type="checkbox" id="ocrAuto" style="width:20px;height:20px"> 명함 사진을 넣으면 이름·회사·연락처 자동 입력</label>
+      <p class="hint" style="margin:8px 0 0">글자 인식은 이 기기 안에서 합니다(사진을 밖으로 보내지 않음). 처음 한 번만 인터넷으로 인식 엔진(약 10MB)을 받고, 그 뒤로는 빨라집니다. 인식이 틀릴 수 있으니 노란 칸은 꼭 확인하세요.</p>
+    </div>
+    <div class="panel">
       <h3>화면</h3>
       <select id="theme">
         <option value="">기기 설정 따르기</option>
@@ -292,12 +308,17 @@ label.f{display:block;font-size:13px;color:var(--sub);margin:12px 0 6px;font-wei
     <button id="fSave">저장</button>
   </div>
   <div class="body">
+    <div class="autoRow">
+      <button class="btn primary" id="aCard" type="button">📷 명함 찍어 자동 입력</button>
+      <button class="btn" id="aText" type="button">📄 텍스트·TXT로 채우기</button>
+    </div>
     <div class="sec">
       <h3>📇 명함 사진</h3>
       <div class="photos" id="fPhotos"></div>
       <input type="file" id="fCam" accept="image/*" capture="environment" hidden>
-      <input type="file" id="fAlbum" accept="image/*" multiple hidden>
-      <p class="hint" style="margin:8px 0 0">앞·뒷면 여러 장 가능 · PC는 캡처 후 <b>Ctrl+V</b>로 붙여넣기</p>
+      <input type="file" id="fAlbum" accept="image/*,.txt,text/plain" multiple hidden>
+      <p class="hint" style="margin:8px 0 0">명함을 찍으면 이름·회사·연락처를 읽어 채웁니다 · 앞·뒷면 여러 장 가능 · PC는 캡처 후 <b>Ctrl+V</b> 또는 끌어다 놓기</p>
+      <div id="ocrBar"></div>
     </div>
 
     <div class="sec">
@@ -383,11 +404,32 @@ label.f{display:block;font-size:13px;color:var(--sub);margin:12px 0 6px;font-wei
   <div class="body" id="dBody"></div>
 </div>
 
+<!-- 텍스트로 채우기 시트 -->
+<div class="sheet" id="textSheet">
+  <div class="top">
+    <button id="tCancel">취소</button>
+    <h2>텍스트로 채우기</h2>
+    <button id="tApply">채우기</button>
+  </div>
+  <div class="body">
+    <p class="hint" style="margin-top:0">미팅 메모·회의록 글을 붙여넣거나 TXT 파일을 열면 날짜·시간·장소·상대방·참석자·논의 내용·결정사항·할 일·다음 미팅을 찾아 칸마다 채웁니다.
+      <b>회사:</b> <b>결정사항:</b>처럼 항목 이름을 앞에 쓰면 정확합니다. 이 앱의 [회의록 복사] 글도 그대로 읽습니다.</p>
+    <div class="row" style="margin-bottom:8px">
+      <button class="btn" id="tFile" type="button">📂 TXT 파일 열기</button>
+      <button class="btn" id="tSample" type="button">📝 양식 넣어 보기</button>
+    </div>
+    <input type="file" id="tFileIn" accept=".txt,text/plain" hidden>
+    <textarea id="tText" style="min-height:52vh;font-size:15px" placeholder="여기에 붙여넣기 (길게 눌러 붙여넣기 / Ctrl+V)"></textarea>
+    <button class="btn primary block" id="tApply2" style="margin-top:10px">✨ 칸에 채우기</button>
+    <button class="btn block" id="tTemplate" style="margin-top:8px">⬇️ 빈 양식 TXT 내려받기</button>
+  </div>
+</div>
+
 <div id="viewer"><img id="vImg" alt=""><div class="vb"><button id="vRot">↻ 회전</button><button id="vClose">닫기 ✕</button></div></div>
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v1.1.0';
+const APP_VERSION = 'v1.2.0';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -672,6 +714,7 @@ function openForm(m, preset){
   $('#fTitle').textContent = m ? '미팅 수정' : (preset && preset.company ? '후속 미팅' : '새 미팅');
   for (const [k, sel] of Object.entries(F)) $(sel).value = editing[k] || (k === 'status' ? '진행중' : '');
   renderType(); renderDur(); renderPhotos(); renderItems(); knownHint();
+  $('#ocrBar').style.display = 'none'; $$('#formSheet .auto').forEach(x => x.classList.remove('auto'));
   $('#formSheet').classList.add('on'); $('#formSheet').scrollTop = 0;
   formSnap = JSON.stringify(collect());
 }
@@ -710,11 +753,15 @@ $('#fPhotos').addEventListener('click', e => {
   const v = e.target.closest('[data-v]'); if (v) openViewer(editing.photos[+v.dataset.v]);
 });
 async function addFiles(files){
+  let first = null;
   for (const f of files) {
+    if (isTxt(f)) { openTextSheet(await readTxt(f)); continue; }
     if (!f.type.startsWith('image/')) continue;
-    try { editing.photos.push(await shrink(f)); } catch { toast('사진을 읽지 못했습니다'); }
+    try { editing.photos.push(await shrink(f)); first ||= f; } catch { toast('사진을 읽지 못했습니다'); }
   }
   renderPhotos();
+  // 이름이나 회사가 비어 있으면 명함 글자 읽어 채우기
+  if (first && ocrOn() && (!$('#fName').value.trim() || !$('#fCompany').value.trim())) ocrCard(first);
 }
 $('#fCam').addEventListener('change', e => { addFiles([...e.target.files]); e.target.value = ''; });
 $('#fAlbum').addEventListener('change', e => { addFiles([...e.target.files]); e.target.value = ''; });
@@ -800,6 +847,407 @@ $('#fCancel').onclick = () => {
   $('#formSheet').classList.remove('on');
 };
 $('#fab').onclick = () => openForm(null, calSel && $('#tab-cal').classList.contains('on') ? {date: calSel} : null);
+
+/* ---------- 자동 입력: 채운 칸은 노랗게 (고치면 원래대로) ---------- */
+const TEXTAREAS = ['notes', 'decisions', 'memo'];
+function applyFields(o, overwrite){
+  let n = 0;
+  for (const [k, sel] of Object.entries(F)) {
+    const v = String(o[k] || '').trim(); if (!v) continue;
+    const el = $(sel), cur = el.value.trim();
+    if (k === 'status') { if (['진행중', '완료', '보류'].includes(v) && cur !== v) { el.value = v; n++; } continue; }
+    if (cur === v || (cur && !overwrite)) continue;
+    el.value = TEXTAREAS.includes(k) && cur ? cur + '\n' + v : v;
+    el.classList.add('auto'); n++;
+  }
+  if (o.type && TYPES.some(t => t[0] === o.type) && editing.type !== o.type) { editing.type = o.type; renderType(); n++; }
+  if (o.items?.length) { editing.items.push(...o.items); renderItems(); n++; }
+  renderDur();
+  if (o.name) fillKnown(); else knownHint();
+  return n;
+}
+$('#formSheet').addEventListener('input', e => e.target.classList?.remove('auto'));
+
+/* ---------- 명함 글자 인식 (Tesseract.js — 기기 안에서 처리) ---------- */
+const OCR_JS = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+const ocrOn = () => lsGet('ocrAuto', true);
+let ocrWorker = null, ocrBusy = false, ocrProg = null, ocrText = '';
+function loadScript(src){
+  return new Promise((res, rej) => {
+    if (window.Tesseract) return res();
+    const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('script')); document.head.appendChild(s);
+  });
+}
+async function getWorker(){
+  if (ocrWorker) return ocrWorker;
+  await loadScript(OCR_JS);
+  ocrWorker = await Tesseract.createWorker(['kor', 'eng'], 1, {logger: m => ocrProg && ocrProg(m)});
+  // 명함은 글이 흩어져 있어 '흩어진 글자' 모드(11)가 가장 잘 읽음 (시험: 이름·회사·전화·메일 10/10)
+  await ocrWorker.setParameters({tessedit_pageseg_mode: '11'});
+  return ocrWorker;
+}
+// 인식용 이미지: 긴 변을 L px로 맞추고 흑백 + 명암 늘리기 (한글은 너무 크게 키우면 오히려 틀림 — 1000px가 가장 정확)
+function prepImage(src, L = 1000){
+  return new Promise((res, rej) => {
+    const url = typeof src === 'string' ? src : URL.createObjectURL(src), img = new Image();
+    img.onload = () => {
+      const s = L / Math.max(img.width, img.height);
+      const c = document.createElement('canvas'); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+      const g = c.getContext('2d'); g.drawImage(img, 0, 0, c.width, c.height);
+      const d = g.getImageData(0, 0, c.width, c.height), p = d.data, hist = new Uint32Array(256);
+      for (let i = 0; i < p.length; i += 4) { const y = (p[i] * 299 + p[i+1] * 587 + p[i+2] * 114) / 1000 | 0; p[i] = y; hist[y]++; }
+      const tot = p.length / 4; let lo = 0, hi = 255, acc = 0;
+      while (lo < 255 && (acc += hist[lo]) < tot * .02) lo++;
+      acc = 0; while (hi > 0 && (acc += hist[hi]) < tot * .02) hi--;
+      const k = 255 / Math.max(1, hi - lo);
+      for (let i = 0; i < p.length; i += 4) { const y = Math.max(0, Math.min(255, (p[i] - lo) * k)); p[i] = p[i+1] = p[i+2] = y; }
+      g.putImageData(d, 0, 0);
+      if (typeof src !== 'string') URL.revokeObjectURL(url);
+      res(c);
+    };
+    img.onerror = () => { if (typeof src !== 'string') URL.revokeObjectURL(url); rej(); };
+    img.src = url;
+  });
+}
+async function ocrCard(src){
+  if (ocrBusy) return;
+  ocrBusy = true;
+  const bar = $('#ocrBar'), set = h => { bar.style.display = 'block'; bar.innerHTML = h; };
+  set('🔍 명함 글자 읽을 준비 중… <span style="color:var(--sub)">(처음 한 번은 인식 엔진을 받느라 20~40초 걸립니다)</span>');
+  try {
+    ocrProg = m => {
+      if (m.status === 'recognizing text') set(`🔍 명함 글자 읽는 중… ${Math.round(m.progress * 100)}%`);
+      else if (/load|initializ/i.test(m.status)) set(`⬇️ 인식 엔진 준비 중… ${Math.round((m.progress || 0) * 100)}%`);
+    };
+    const w = await getWorker();
+    let {data} = await w.recognize(await prepImage(src, 1000));
+    ocrText = data.text || '';
+    const info = parseContact(ocrText);
+    // 명함이 사진 안에서 작게 찍혔으면 크게 한 번 더 읽어 빈 값만 보충
+    if (!info.name || !info.company || !(info.phone || info.email)) {
+      ({data} = await w.recognize(await prepImage(src, 1700)));
+      const more = parseContact(data.text || '');
+      for (const k of Object.keys(more)) if (more[k] && !info[k]) info[k] = more[k];
+      ocrText += '\n— 크게 다시 읽음 —\n' + (data.text || '');
+    }
+    const n = $('#formSheet').classList.contains('on') ? applyFields(info, false) : 0;
+    const got = ['company', 'name', 'title', 'phone', 'email'].filter(k => info[k]).map(k => ({company:'회사', name:'이름', title:'직책', phone:'연락처', email:'이메일'})[k]);
+    set(n ? `✨ 명함에서 ${got.join('·')}을(를) 읽어 <b>${n}개 칸</b>을 채웠습니다. 노란 칸이 맞는지 확인하세요. <a data-raw>읽은 글자 보기</a>`
+          : got.length ? `이미 적힌 칸은 그대로 두었습니다. <a data-raw>읽은 글자 보기</a> · <a data-force>읽은 값으로 바꾸기</a>`
+          : `명함에서 이름·회사를 찾지 못했습니다. 밝은 곳에서 명함이 화면을 가득 채우게 다시 찍어 보세요. <a data-raw>읽은 글자 보기</a>`);
+    bar._info = info;
+  } catch (e) {
+    set('⚠️ 글자를 읽지 못했습니다. 인터넷 연결을 확인하세요 (처음 한 번은 인터넷이 필요합니다). <a data-retry>다시 시도</a>');
+    ocrWorker = null;
+  }
+  ocrProg = null; ocrBusy = false;
+}
+$('#ocrBar').addEventListener('click', e => {
+  const bar = $('#ocrBar');
+  if (e.target.closest('[data-raw]')) { const pre = bar.querySelector('pre'); if (pre) pre.remove(); else bar.insertAdjacentHTML('beforeend', `<pre>${esc(ocrText.trim() || '(읽은 글자 없음)')}</pre>`); }
+  if (e.target.closest('[data-force]') && bar._info) { const n = applyFields(bar._info, true); toast(`${n}개 칸을 바꿨습니다`); }
+  if (e.target.closest('[data-retry]') && editing.photos[0]) ocrCard(editing.photos[0]);
+});
+$('#aCard').onclick = () => $('#fCam').click();
+
+/* ---------- 명함·상대방 글 → 회사·부서·이름·직책·연락처 ---------- */
+const TITLES = ['대표이사','부회장','부사장','본부장','센터장','공장장','지점장','연구소장','사업부장','회장','사장','전무','상무','이사','대표','실장','소장','부장','차장','과장','대리','주임','사원','팀장','파트장','그룹장','수석','책임','선임','연구원','매니저','프로','위원','고문','감사','기사','CEO','CTO','CFO','COO','Manager','Director','President','Engineer'];
+const COMPANY_RE = /(주식회사|㈜|\(주\)|\(유\)|유한회사|co\.?,?\s*ltd|corp|inc\b|ltd|그룹|산업|중공업|건설|전자|엔지니어링|테크|상사|물산|조선|해양|오션|코리아|컴퍼니|솔루션|시스템|기술|공업|화학|제약|은행|증권|보험|물류|통상|무역|에너지|플랜트|기계|정공|금속|철강|산전|전기|E&C|ENG)/i;
+const DEPT_RE = /^[가-힣A-Za-z0-9&]{1,14}(팀|부|본부|실|센터|사업부|그룹|파트|연구소|지점|공장|사업소)$/;
+const ADDR_RE = /(서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충청|충북|충남|전라|전북|전남|경상|경북|경남|제주)|([가-힣]+(시|군|구)\s+[가-힣0-9]+(로|길|동|읍|면))/;
+const SURNAMES = '김이박최정강조윤장임한오서신권황안송류전홍고문양손배백허유남심노하곽성차주우구민진나지엄채원천방공현함변염여추도소석선설마길연위표명기반왕금옥육인맹제모탁국어은편용예경봉사부';
+const NOT_NAME = /^(주소|전화|팩스|휴대폰|핸드폰|이메일|메일|홈페이지|본사|공장|지사|연구소|사무소|대표|명함|부서|직책|회사|담당|고객|영업|구매|조달|생산|품질|기술|관리)$/;
+function fmtPhone(s){
+  let d = s.replace(/\D/g, ''); if (d.startsWith('82')) d = '0' + d.slice(2);
+  if (d.startsWith('02')) return d.replace(/^(02)(\d{3,4})(\d{4})$/, '$1-$2-$3');
+  return d.replace(/^(\d{3})(\d{3,4})(\d{4})$/, '$1-$2-$3');
+}
+function parseContact(text){
+  const o = {};
+  const lines = String(text || '').split(/\r?\n/).map(l => l.replace(/[|_~`"“”‘’«»<>]/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean)
+    .map(l => l.replace(/(^|\s)((?:[가-힣] ){1,3}[가-힣])(?=\s|$)/g, (_, a, b) => a + b.replace(/ /g, '')));   // "홍 길 동 부장" → "홍길동 부장"
+  const skip = new Set();
+  // 이메일
+  for (const [i, l] of lines.entries()) {
+    const m = l.replace(/(^|\s)(e-?mail|mail|e)\s*[.:：]\s*/gi, ' ').replace(/\s*@\s*/g, '@').replace(/\s*\.\s*/g, '.').match(/[\w.+-]+@[\w-]+(\.[\w-]+)*/);
+    if (m && /[.]|com$|kr$|net$/i.test(m[0].split('@')[1])) {
+      // 인식에서 자주 빠지는 점 되살리기: daehan.cokr → daehan.co.kr, hanwhacom → hanwha.com
+      o.email ||= m[0].toLowerCase().replace(/\.?(co|ne|or|go|ac|re)\.?kr$/, '.$1.kr').replace(/([^.])(com|net)$/, '$1.$2').replace(/^\.|\.$/g, '');
+      skip.add(i);
+    }
+  }
+  // 전화: 휴대폰 먼저, 없으면 일반 전화 (팩스 제외)
+  let mobile = '', tel = '';
+  for (const [i, l0] of lines.entries()) {
+    // 숫자 사이에 낀 O·l·I는 0·1로 (O10-1234 → 010-1234)
+    const l = l0.replace(/(?<=[\d\s.\-()]|^)[Oo](?=[\d\s.\-])/g, '0').replace(/(?<=[\d\-.])[lI|](?=[\d\-.])/g, '1');
+    const re = /(\+?82[-.\s]?)?\(?0\d{1,2}\)?[-.\s)]{0,2}\d{3,4}[-.\s]{0,2}\d{4}/g; let m;
+    while ((m = re.exec(l))) {
+      const before = l.slice(Math.max(0, m.index - 8), m.index), num = fmtPhone(m[0]);
+      if (/(f|fax|팩스)\W*$/i.test(before)) { skip.add(i); continue; }
+      if (/(m|h\.?p|mobile|cell|휴대|핸드|폰)\W*$/i.test(before) || /^01\d/.test(num)) mobile ||= num; else tel ||= num;
+      skip.add(i);
+    }
+  }
+  o.phone = mobile || tel;
+  // 주소
+  for (const [i, l] of lines.entries()) {
+    if (skip.has(i)) continue;
+    if (ADDR_RE.test(l) && /\d/.test(l) && l.length >= 8) { o.addr = l.replace(/^(주소|address|add|a)\s*[.:：]?\s*/i, ''); skip.add(i); break; }
+  }
+  for (const [i, l] of lines.entries()) if (/(www\.|https?:|\.com\b|\.co\.kr\b)/i.test(l)) skip.add(i);
+  // 직책: 낱말 단위로만 ("프로젝트"의 '프로'는 직책 아님), "영업부장"처럼 끝에 붙은 것은 인정
+  const TS = TITLES.slice().sort((a, b) => b.length - a.length);
+  const titleOfTok = t => {
+    const exact = TS.find(x => t.toLowerCase() === x.toLowerCase()); if (exact) return exact;
+    if (t.length > 6) return '';
+    const end = TS.find(x => x.length >= 2 && /[가-힣]/.test(x) && t.endsWith(x)); if (!end) return '';
+    return TS.includes(t.slice(0, -end.length)) ? t : end;   // "수석연구원"은 통째로, "영업부장"은 "부장"
+  };
+  const titleRe = {test: s => s.split(/[\s,/·•]+/).some(titleOfTok)};
+  const titleIn = s => { for (const t of s.split(/[\s,/·•]+/)) { const x = titleOfTok(t); if (x) return x; } return ''; };
+  // 회사
+  let coIdx = -1, coScore = 0;
+  for (const [i, l] of lines.entries()) {
+    if (skip.has(i)) continue;
+    const sc = (l.match(new RegExp(COMPANY_RE.source, 'gi')) || []).length * 2 + (/(주식회사|㈜|\(주\))/.test(l) ? 3 : 0);
+    if (sc > coScore) { coScore = sc; coIdx = i; }
+  }
+  // 이름 후보
+  let best = null;
+  for (const [i, l] of lines.entries()) {
+    if (skip.has(i)) continue;
+    const toks = l.split(/[\s,/·•]+/).filter(Boolean);
+    const hasTitle = titleRe.test(l);
+    for (const t of toks) {
+      if (!/^[가-힣]{2,4}$/.test(t) || NOT_NAME.test(t) || titleOfTok(t) || COMPANY_RE.test(t)) continue;
+      if (/(팀|본부|센터|사업부|그룹|파트|연구소|지점|공장|사업소)$/.test(t)) continue;
+      let sc = 0;
+      if (/[부실]$/.test(t)) sc -= 2;   // "영업부·기획실"일 수도 (이영실 같은 이름도 있어 빼지는 않음)
+      if (SURNAMES.includes(t[0])) sc += 3;
+      if (t.length === 3) sc += 2; else if (t.length === 2) sc += 1;
+      if (hasTitle) sc += 2;
+      if (toks.length <= 3) sc += 1;
+      if (i === coIdx) sc -= 2;
+      if (!best || sc > best.sc) best = {t, sc, i};
+    }
+  }
+  if (best && best.sc >= 3) o.name = best.t;
+  // 직책: 이름 줄에 있으면 그것, 아니면 처음 나온 것
+  const order = best ? [best.i, ...lines.keys()] : [...lines.keys()];
+  for (const i of order) { if (skip.has(i)) continue; const x = titleIn(lines[i]); if (x) { o.title = x; break; } }
+  // 부서
+  for (const [i, l] of lines.entries()) {
+    if (skip.has(i)) continue;
+    const toks = l.split(/[\s,/·•]+/);
+    const t = toks.find((x, j) => DEPT_RE.test(x) && x !== o.name && !titleOfTok(x) && !(i === coIdx && j === 0) && !/(주식회사|㈜|\(주\))/.test(x));
+    if (t) { o.dept = t; break; }
+  }
+  if (coIdx >= 0) {
+    o.company = lines[coIdx].split(/\s+/)
+      .filter(x => x !== o.name && x !== o.dept && !titleOfTok(x) && !/^(주식회사|㈜|\(주\)|\(유\)|유한회사)$/.test(x) && !/^[\d\W]{1,3}$/.test(x))
+      .join(' ').replace(/(주식회사|㈜|\(주\)|\(유\)|유한회사)/g, '').replace(/^[^가-힣A-Za-z]+(?=[가-힣])/, '').replace(/^[^가-힣A-Za-z0-9]+|[^가-힣A-Za-z0-9.)]+$/g, '').trim();
+  }
+  return o;
+}
+
+/* ---------- 텍스트·TXT → 칸 전체 ---------- */
+const LABELS = [
+  ['when', /^(일시|날짜|일자|미팅\s*일시|회의\s*일시|미팅\s*날짜|date|when)$/i],
+  ['place', /^(장소|위치|미팅\s*장소|회의\s*장소|place|where|location)$/i],
+  ['type', /^(유형|방식|형태|미팅\s*유형|미팅\s*방식)$/],
+  ['purpose', /^(목적|주제|제목|미팅\s*목적|회의\s*목적|미팅명|회의명|건명|subject|purpose)$/i],
+  ['contact', /^(상대방|상대|거래처\s*정보|고객\s*정보|명함)$/],
+  ['company', /^(회사|회사명|업체|업체명|거래처|고객사|company)$/i],
+  ['dept', /^(부서|소속|department)$/i],
+  ['name', /^(이름|성명|담당자|상대\s*담당자|name)$/i],
+  ['title', /^(직책|직급|직위|position)$/i],
+  ['phone', /^(연락처|전화|전화번호|휴대폰|핸드폰|휴대전화|hp|mobile|tel|phone)$/i],
+  ['email', /^(이메일|메일|e-?mail)$/i],
+  ['addr', /^(주소|address)$/i],
+  ['attend', /^(참석자|참석|참석\s*인원|attendees?)$/i],
+  ['ours', /^(우리측|당사|당사\s*참석자|내부\s*참석자|우리\s*참석자)$/],
+  ['theirs', /^(상대측|상대\s*참석자|외부\s*참석자|고객측)$/],
+  ['notes', /^(논의\s*내용|논의|회의\s*내용|미팅\s*내용|주요\s*내용|주요\s*사항|내용|안건|안건\s*및\s*논의|discussion|notes|minutes)$/i],
+  ['decisions', /^(결정\s*사항|결정|합의\s*사항|합의|결론|decisions?)$/i],
+  ['items', /^(액션\s*아이템|액션|할\s*일|todo|to-?do|action\s*items?|후속\s*조치|조치\s*사항|후속\s*업무)$/i],
+  ['next', /^(다음\s*미팅|다음\s*회의|차기\s*미팅|차기\s*회의|next\s*meeting)$/i],
+  ['due', /^(후속\s*연락일?|팔로우\s*업|follow-?up)$/i],
+  ['status', /^(상태|진행\s*상태|status)$/i],
+  ['memo', /^(내부\s*메모|메모|비고|참고|memo)$/i],
+];
+const HEAD_RE = /^[\s■□●○◆◇▶▷►•·*#>\-–—]*(?:\d+[.)]\s*)?[\[【(]?\s*([가-힣A-Za-z][가-힣A-Za-z\s\-/]{0,14}?)\s*[\]】)]?\s*(?:[:：]\s*(.*))?$/;
+function labelOf(line){
+  const m = HEAD_RE.exec(line); if (!m) return null;
+  const hit = LABELS.find(([, re]) => re.test(m[1].trim()));
+  if (!hit) return null;
+  if (m[2] === undefined && line.replace(/[\s■□●○◆◇▶▷►•·*#>\-–—\[\]【】():：\d.]/g, '').length > m[1].replace(/\s/g, '').length) return null;
+  return {key: hit[0], rest: (m[2] || '').trim()};
+}
+function parseDate(s){
+  const y0 = new Date().getFullYear(); let m;
+  const ok = (y, mo, d) => mo >= 1 && mo <= 12 && d >= 1 && d <= 31 ? `${y}-${pad(mo)}-${pad(d)}` : '';
+  if ((m = /(20\d{2})\s*[.\-\/년]\s*(\d{1,2})\s*[.\-\/월]\s*(\d{1,2})\s*일?/.exec(s))) return {date: ok(+m[1], +m[2], +m[3]), hit: m[0]};
+  if ((m = /(?<!\d)(\d{2})\s*[.\-\/]\s*(\d{1,2})\s*[.\-\/]\s*(\d{1,2})(?!\d)/.exec(s)) && +m[1] > 12) return {date: ok(2000 + +m[1], +m[2], +m[3]), hit: m[0]};
+  if ((m = /(\d{1,2})\s*월\s*(\d{1,2})\s*일/.exec(s))) return {date: ok(y0, +m[1], +m[2]), hit: m[0]};
+  if ((m = /(?<![\d.:])(\d{1,2})\s*[\/.]\s*(\d{1,2})(?![\d:]|\.\d)/.exec(s))) { const d = ok(y0, +m[1], +m[2]); if (d) return {date: d, hit: m[0]}; }
+  const rel = {'오늘': 0, '내일': 1, '모레': 2}; if ((m = /(오늘|내일|모레)/.exec(s))) { const d = new Date(); d.setDate(d.getDate() + rel[m[1]]); return {date: ymd(d), hit: m[0]}; }
+  return {date: '', hit: ''};
+}
+function parseTimes(s){
+  const out = [], hits = [];
+  const re = /(오전|오후|am|pm|a\.m\.|p\.m\.)?\s*(\d{1,2})\s*(?::\s*(\d{2})|시\s*(?:(\d{1,2})\s*분|(반))?)\s*(am|pm)?/gi; let m;
+  while ((m = re.exec(s)) && out.length < 2) {
+    let h = +m[2]; const mi = m[3] ? +m[3] : m[4] ? +m[4] : m[5] ? 30 : 0, ap = (m[1] || m[6] || '').toLowerCase();
+    if (h > 23 || mi > 59) continue;
+    if (/(오후|pm|p\.m\.)/.test(ap) && h < 12) h += 12;
+    else if (/(오전|am|a\.m\.)/.test(ap) && h === 12) h = 0;
+    else if (!ap && h >= 1 && h <= 7 && !/^0/.test(m[2])) h += 12;   // 업무 시간: "2시" = 오후 2시
+    out.push(`${pad(h)}:${pad(mi)}`); hits.push(m[0]);
+  }
+  return {times: out, hits};
+}
+function parseWhen(s){
+  const d = parseDate(s), rest = d.hit ? s.replace(d.hit, ' ') : s, t = parseTimes(rest);
+  let left = rest; t.hits.forEach(h => left = left.replace(h, ' '));
+  left = left.replace(/\([월화수목금토일]\)|[월화수목금토일]요일|~|-|부터|까지/g, ' ').replace(/\s+/g, ' ').trim();
+  return {date: d.date, time: t.times[0] || '', end: t.times[1] || '', left};
+}
+function parseItem(line){
+  let s = line.replace(/^[\s\-–—•·*▶►>]+|^\d+[.)]\s*/g, '').trim(), done = false, who = '', due = '';
+  const ck = /^(\[\s*[xXvV✓✔]\s*\]|☑|✅|✔|✓)\s*/; if (ck.test(s)) { done = true; s = s.replace(ck, ''); }
+  s = s.replace(/^(\[\s*\]|☐|□)\s*/, '');
+  const takeDue = p => { const d = parseDate(p.replace(/기한\s*[:：]?|~|까지/g, '')); if (d.date) { due ||= d.date; return true; } return false; };
+  const par = /\(([^()]*)\)\s*$/.exec(s);
+  if (par) { s = s.slice(0, par.index).trim(); for (const p of par[1].split(/[,，;]/).map(x => x.trim()).filter(Boolean)) { if (!takeDue(p)) who ||= p.replace(/^담당자?\s*[:：]?\s*/, ''); } }
+  const parts = s.split(/\s+[\/|]\s+/);
+  if (parts.length > 1) { s = parts.shift(); for (const p of parts) { if (!takeDue(p)) who ||= p.replace(/^담당자?\s*[:：]?\s*/, ''); } }
+  let m;
+  if ((m = /\s*담당자?\s*[:：]?\s*([가-힣A-Za-z]{2,10})/.exec(s))) { who ||= m[1]; s = s.replace(m[0], ''); }
+  if ((m = /\s*(기한\s*[:：]?\s*|~\s*)?([\d.\/\-년월일\s]{3,14}?)\s*까지/.exec(s)) || (m = /\s*(기한\s*[:：]?\s*|~\s*)([\d.\/\-년월일\s]{3,14})/.exec(s))) {
+    if (takeDue(m[2])) s = s.replace(m[0], '');
+  }
+  return {task: s.replace(/\s+/g, ' ').trim(), who: who.trim(), due, done};
+}
+function parseText(txt){
+  const lines = String(txt || '').replace(/\r/g, '').split('\n');
+  const sec = {}, pre = []; let cur = null;
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) { if (cur && sec[cur].length) sec[cur].push(''); continue; }
+    const tm = /^\[?\s*(미팅|회의)\s*(회의록|기록|노트|메모)\s*\]?\s*(.*)$/.exec(line);
+    if (tm && !cur && !pre.length) { if (tm[3]) (sec.purpose ||= []).push(tm[3]); continue; }
+    const lb = labelOf(line);
+    if (lb && !(cur === lb.key && lb.key === 'notes')) {
+      cur = lb.key; sec[cur] ||= [];
+      if (lb.rest) sec[cur].push(lb.rest);
+      continue;
+    }
+    if (cur) sec[cur].push(line); else pre.push(line);
+  }
+  const one = k => (sec[k] || []).join(' ').replace(/\s+/g, ' ').trim();
+  const multi = k => (sec[k] || []).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  const o = {};
+  // 일시
+  const w = parseWhen(one('when') || pre.join(' '));
+  if (w.date) o.date = w.date;
+  if (w.time) o.time = w.time;
+  if (w.end) o.end = w.end;
+  // 장소 "(방문)" 같은 유형 꼬리표
+  let place = one('place');
+  const tp = /\(\s*(대면|방문|내방|화상|전화)\s*\)\s*$/.exec(place);
+  if (tp) { o.type = tp[1]; place = place.slice(0, tp.index).trim(); }
+  if (place && place !== '-') o.place = place;
+  const ty = one('type'); const tf = TYPES.find(([t]) => ty.includes(t)); if (tf) o.type = tf[0];
+  o.purpose = one('purpose');
+  // 상대방
+  if (sec.contact) Object.assign(o, parseContact(multi('contact')));
+  for (const k of ['company', 'dept', 'name', 'title', 'email', 'addr']) if (one(k)) o[k] = one(k).replace(/^(주식회사|㈜|\(주\))\s*/, '');
+  if (one('phone')) o.phone = fmtPhone(one('phone')) || one('phone');
+  // 미리 적은 줄(항목 이름 없음)에서 연락처만 건지기
+  if (pre.length) { const c = parseContact(pre.join('\n')); o.email ||= c.email; o.phone ||= c.phone; }
+  // 참석자
+  const at = one('attend');
+  const am = /우리측\s*[:：]?\s*(.*?)\s*\/\s*상대측\s*[:：]?\s*(.*)$/.exec(at);
+  if (am) { o.ours = am[1].replace(/^-$/, ''); o.theirs = am[2].replace(/^-$/, ''); } else if (at) o.ours = at;
+  if (one('ours')) o.ours = one('ours');
+  if (one('theirs')) o.theirs = one('theirs');
+  // 본문
+  o.notes = multi('notes');
+  const leftover = pre.filter(l => !parseDate(l).date && !parseContact(l).phone && !parseContact(l).email);
+  if (!Object.keys(sec).length && leftover.length) o.notes = leftover.join('\n');   // 항목 이름이 하나도 없으면 전부 논의 내용으로
+  o.decisions = multi('decisions');
+  o.memo = multi('memo');
+  o.items = (sec.items || []).filter(l => l.trim()).map(parseItem).filter(i => i.task);
+  // 다음 미팅
+  if (one('next')) { const n = parseWhen(one('next')); o.nextDate = n.date; o.nextTime = n.time; o.next = n.left; }
+  if (one('due')) o.due = parseDate(one('due')).date;
+  const st = one('status'); o.status = ['진행중', '완료', '보류'].find(x => st.includes(x)) || '';
+  return o;
+}
+const TXT_TEMPLATE = `[미팅 기록]
+일시: 2026-11-03 14:00 ~ 15:00
+장소: 본사 3층 회의실
+유형: 방문
+목적: 단가 협의
+
+회사: ○○중공업
+부서: 조달팀
+이름: 홍길동
+직책: 부장
+연락처: 010-1234-5678
+이메일: hong@example.com
+주소:
+
+참석자: 우리측 양팀장, 김대리 / 상대측 홍부장, 이과장
+
+논의 내용:
+- 부자재 단가 5% 인하 요청
+- 납기 11월 말 확정 필요
+
+결정사항:
+- 11/5까지 수정 견적 제출
+
+할 일:
+- 수정 견적서 송부 (김대리, ~11/5)
+- 샘플 발송 (양팀장, ~11/10)
+
+다음 미팅: 11/10 14:00 본사
+후속 연락일: 11/7
+상태: 진행중
+내부 메모: 가격보다 납기 중시
+`;
+const isTxt = f => f && (f.type === 'text/plain' || /\.txt$/i.test(f.name || ''));
+// 윈도 메모장 ANSI(EUC-KR) 파일도 읽기
+async function readTxt(f){
+  const buf = await f.arrayBuffer();
+  try { return new TextDecoder('utf-8', {fatal: true}).decode(buf); }
+  catch { try { return new TextDecoder('euc-kr').decode(buf); } catch { return new TextDecoder().decode(buf); } }
+}
+function openTextSheet(text){
+  $('#tText').value = text || '';
+  $('#textSheet').classList.add('on'); $('#textSheet').scrollTop = 0;
+  if (!text) setTimeout(() => $('#tText').focus(), 50);
+}
+function applyText(){
+  const txt = $('#tText').value.trim();
+  if (!txt) { toast('붙여넣은 글이 없습니다'); return; }
+  const n = applyFields(parseText(txt), true);
+  $('#textSheet').classList.remove('on');
+  $('#formSheet').scrollTop = 0;
+  toast(n ? `${n}개 항목을 채웠습니다 — 노란 칸을 확인하세요` : '채울 항목을 찾지 못했습니다');
+}
+$('#aText').onclick = () => openTextSheet('');
+$('#tCancel').onclick = () => $('#textSheet').classList.remove('on');
+$('#tApply').onclick = applyText; $('#tApply2').onclick = applyText;
+$('#tFile').onclick = () => $('#tFileIn').click();
+$('#tFileIn').addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (f) $('#tText').value = await readTxt(f); });
+$('#tSample').onclick = () => { $('#tText').value = TXT_TEMPLATE; };
+$('#tTemplate').onclick = () => download('미팅기록_양식.txt', '﻿' + TXT_TEMPLATE.replace(/\n/g, '\r\n'), 'text/plain');
+// PC: 사진·TXT 끌어다 놓기
+['dragover', 'dragenter'].forEach(t => $('#formSheet').addEventListener(t, e => { e.preventDefault(); $('#formSheet').classList.add('drop'); }));
+['dragleave', 'drop'].forEach(t => $('#formSheet').addEventListener(t, e => { if (t === 'dragleave' && e.target !== $('#formSheet')) return; $('#formSheet').classList.remove('drop'); }));
+$('#formSheet').addEventListener('drop', e => { e.preventDefault(); const fs = [...(e.dataTransfer?.files || [])]; if (fs.length) addFiles(fs); });
 
 /* ---------- 상세 ---------- */
 function openDetail(id){ detailId = id; renderDetail(); $('#detailSheet').classList.add('on'); $('#detailSheet').scrollTop = 0; }
@@ -907,6 +1355,7 @@ $('#viewer').addEventListener('click', e => { if (e.target.id === 'viewer' || e.
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     if ($('#viewer').classList.contains('on')) $('#viewer').classList.remove('on');
+    else if ($('#textSheet').classList.contains('on')) $('#textSheet').classList.remove('on');
     else if ($('#formSheet').classList.contains('on')) $('#fCancel').click();
     else if ($('#detailSheet').classList.contains('on')) $('#dBack').click();
   }
@@ -954,6 +1403,8 @@ $('#btnCsv').onclick = () => {
 /* ---------- 화면 · 설치 · 정보 ---------- */
 function applyTheme(){ const t = lsGet('theme', ''); if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; $('#theme').value = t; }
 $('#theme').addEventListener('change', () => { lsSet('theme', $('#theme').value); applyTheme(); });
+$('#ocrAuto').checked = ocrOn();
+$('#ocrAuto').addEventListener('change', () => lsSet('ocrAuto', $('#ocrAuto').checked));
 let installEvt = null;
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; $('#btnInstall').style.display = 'block'; });
 $('#btnInstall').onclick = async () => { if (!installEvt) return; installEvt.prompt(); await installEvt.userChoice; installEvt = null; $('#btnInstall').style.display = 'none'; };
