@@ -193,6 +193,21 @@ input.auto,textarea.auto{background:#fff7d1;border-color:#f59e0b}
 #ocrBar a{color:var(--accent);font-weight:700;cursor:pointer}
 #ocrBar pre{white-space:pre-wrap;font:inherit;font-size:12px;color:var(--sub);margin:8px 0 0;max-height:200px;overflow:auto}
 #textSheet{z-index:70}
+#textSheet .tBody{max-width:1100px}
+.tWrap{display:grid;grid-template-columns:1fr;gap:12px}
+@media (min-width:760px){ .tWrap{grid-template-columns:1fr 1fr} #tText{min-height:calc(100vh - 230px)} }
+.tHead{display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;color:var(--accent);margin:0 2px 6px;min-height:34px}
+#tText{min-height:46vh;font-size:15px;line-height:1.75;font-family:inherit}
+.tPrev{background:var(--card);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+.pv{display:flex;align-items:center;gap:8px;padding:7px 8px 7px 12px;border-top:1px solid var(--line);min-height:46px}
+.pv:first-child{border-top:0}
+.pv .k{width:76px;flex:none;font-size:13px;color:var(--sub);font-weight:600}
+.pv .v{flex:1;min-width:0;font-size:14px;white-space:pre-wrap;word-break:break-word;max-height:96px;overflow:auto}
+.pv .v.none{color:var(--line)}
+.pv button{flex:none;width:44px;height:34px;border-radius:9px;border:0;background:var(--accent);color:#fff;font-size:18px;font-weight:700;cursor:pointer}
+.pv button:disabled{background:var(--accent-soft);color:var(--sub);cursor:default;font-size:15px}
+.pv.same button{background:var(--accent-soft);color:var(--ok)}
+.pv button.em{opacity:.3}
 .drop{outline:3px dashed var(--accent);outline-offset:-10px}
 #viewer{position:fixed;inset:0;z-index:80;background:#000;display:none;align-items:center;justify-content:center}
 #viewer.on{display:flex}
@@ -304,7 +319,7 @@ input.auto,textarea.auto{background:#fff7d1;border-color:#f59e0b}
   <div class="body">
     <div class="autoRow">
       <button class="btn primary" id="aCard" type="button">📷 명함 찍어 자동 입력</button>
-      <button class="btn" id="aText" type="button">📄 텍스트·TXT로 채우기</button>
+      <button class="btn" id="aText" type="button">📝 양식(TXT)으로 채우기</button>
     </div>
     <div class="sec">
       <h3>📇 명함 사진</h3>
@@ -387,24 +402,31 @@ input.auto,textarea.auto{background:#fff7d1;border-color:#f59e0b}
   <div class="body" id="dBody"></div>
 </div>
 
-<!-- 텍스트로 채우기 시트 -->
+<!-- 양식(TXT) 채우기 시트: 왼쪽 TXT 양식 ↔ 오른쪽 항목별 [➜] -->
 <div class="sheet" id="textSheet">
   <div class="top">
-    <button id="tCancel">취소</button>
-    <h2>텍스트로 채우기</h2>
-    <button id="tApply">채우기</button>
+    <button id="tCancel">닫기</button>
+    <h2>양식(TXT)으로 채우기</h2>
+    <button id="tApply">➜ 모두</button>
   </div>
-  <div class="body">
-    <p class="hint" style="margin-top:0">미팅 메모·회의록 글을 붙여넣거나 TXT 파일을 열면 날짜·시간·장소·상대방·참석자·논의 내용·후속 연락일을 찾아 칸마다 채웁니다.
-      <b>회사:</b> <b>논의 내용:</b>처럼 항목 이름을 앞에 쓰면 정확합니다. 이 앱의 [회의록 복사] 글도 그대로 읽습니다.</p>
-    <div class="row" style="margin-bottom:8px">
-      <button class="btn" id="tFile" type="button">📂 TXT 파일 열기</button>
-      <button class="btn" id="tSample" type="button">📝 양식 넣어 보기</button>
+  <div class="body tBody">
+    <p class="hint" style="margin-top:0">왼쪽 양식의 <b>:</b> 뒤에 적거나 TXT를 붙여넣으면, 오른쪽에 들어갈 칸이 나란히 보입니다. <b>➜</b>를 누르면 그 칸이 채워집니다.</p>
+    <div class="row" style="margin-bottom:10px">
+      <button class="btn sm" id="tFile" type="button">📂 TXT 열기</button>
+      <button class="btn sm" id="tBlank" type="button">🧹 빈 양식</button>
+      <button class="btn sm" id="tTemplate" type="button">⬇️ TXT 저장</button>
     </div>
     <input type="file" id="tFileIn" accept=".txt,text/plain" hidden>
-    <textarea id="tText" style="min-height:52vh;font-size:15px" placeholder="여기에 붙여넣기 (길게 눌러 붙여넣기 / Ctrl+V)"></textarea>
-    <button class="btn primary block" id="tApply2" style="margin-top:10px">✨ 칸에 채우기</button>
-    <button class="btn block" id="tTemplate" style="margin-top:8px">⬇️ 빈 양식 TXT 내려받기</button>
+    <div class="tWrap">
+      <div>
+        <div class="tHead">📄 TXT 양식</div>
+        <textarea id="tText" spellcheck="false" placeholder="여기에 붙여넣기 (길게 눌러 붙여넣기 / Ctrl+V)"></textarea>
+      </div>
+      <div>
+        <div class="tHead">📋 들어갈 칸 <button class="btn primary sm" id="tApply2" type="button">➜ 모두 채우기</button></div>
+        <div id="tPrev" class="tPrev"></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -412,7 +434,7 @@ input.auto,textarea.auto{background:#fff7d1;border-color:#f59e0b}
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v1.3.0';
+const APP_VERSION = 'v1.4.0';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1137,26 +1159,90 @@ async function readTxt(f){
   try { return new TextDecoder('utf-8', {fatal: true}).decode(buf); }
   catch { try { return new TextDecoder('euc-kr').decode(buf); } catch { return new TextDecoder().decode(buf); } }
 }
+// 지금 입력 화면 값으로 TXT 양식 만들기 (비어 있으면 빈 양식 + 오늘 날짜·지금 시각)
+function formToTxt(){
+  const v = k => $(F[k]).value.trim();
+  const when = [v('date'), v('time')].filter(Boolean).join(' ') + (v('end') ? ' ~ ' + v('end') : '');
+  const memo = v('memo');
+  return `[미팅 기록]
+일시: ${when}
+장소: ${v('place')}
+유형: ${editing?.type || ''}
+목적: ${v('purpose')}
+
+회사: ${v('company')}
+부서: ${v('dept')}
+이름: ${v('name')}
+직책: ${v('title')}
+연락처: ${v('phone')}
+이메일: ${v('email')}
+주소: ${v('addr')}
+
+참석자: 우리측 ${v('ours')} / 상대측 ${v('theirs')}
+
+논의 내용:
+${v('notes') || '- '}
+
+후속 연락일: ${v('due')}
+상태: ${v('status') || '진행중'}
+내부 메모:${memo.includes('\n') ? '\n' + memo : ' ' + memo}
+`;
+}
+// 오른쪽 '들어갈 칸' 목록 (입력 화면 순서)
+const PV = [['date','날짜'],['time','시작 시간'],['end','종료 시간'],['place','장소'],['type','유형'],['purpose','미팅 목적'],
+  ['company','회사'],['dept','부서'],['name','이름'],['title','직책'],['phone','연락처'],['email','이메일'],['addr','주소'],
+  ['ours','우리측'],['theirs','상대측'],['notes','논의 내용'],['due','후속 연락일'],['status','상태'],['memo','내부 메모']];
+let tParsed = {};
+const curVal = k => k === 'type' ? (editing?.type || '') : $(F[k]).value.trim();
+function setField(k, v){
+  if (k === 'type') { editing.type = v; renderType(); return; }
+  const el = $(F[k]); if (!el) return;
+  el.value = v; el.classList.add('auto');
+  if (k === 'time' || k === 'end') renderDur();
+  if (k === 'company' || k === 'name') knownHint();
+}
+function renderPreview(){
+  const o = tParsed = parseText($('#tText').value);
+  if (o.notes) o.notes = o.notes.split('\n').filter(l => !/^[-•·*]\s*$/.test(l.trim())).join('\n').trim();   // 빈 "- " 줄 빼기
+  const shown = k => k === 'date' ? fmtDate(o[k]) + ` (${o[k]})` : k === 'due' && o[k] ? fmtDate(o[k]) : o[k];
+  $('#tPrev').innerHTML = PV.map(([k, lab]) => {
+    const v = String(o[k] || '').trim(), same = v && v === curVal(k);
+    return `<div class="pv ${same ? 'same' : ''}"><span class="k">${lab}</span>
+      <span class="v ${v ? '' : 'none'}">${v ? esc(shown(k)) : '—'}</span>
+      <button type="button" data-k="${k}" ${v && !same ? '' : 'disabled'} ${v ? '' : 'class="em"'} title="${lab} 칸에 넣기">${same ? '✔' : '➜'}</button></div>`;
+  }).join('');
+}
+let tTimer = 0;
+$('#tText').addEventListener('input', () => { clearTimeout(tTimer); tTimer = setTimeout(renderPreview, 150); });
+$('#tPrev').addEventListener('click', e => {
+  const b = e.target.closest('button[data-k]'); if (!b || b.disabled) return;
+  const k = b.dataset.k; setField(k, String(tParsed[k]).trim()); renderPreview();
+  toast(`${PV.find(x => x[0] === k)[1]} 칸을 채웠습니다`);
+});
 function openTextSheet(text){
-  $('#tText').value = text || '';
+  $('#tText').value = text || formToTxt();
+  renderPreview();
   $('#textSheet').classList.add('on'); $('#textSheet').scrollTop = 0;
-  if (!text) setTimeout(() => $('#tText').focus(), 50);
 }
 function applyText(){
-  const txt = $('#tText').value.trim();
-  if (!txt) { toast('붙여넣은 글이 없습니다'); return; }
-  const n = applyFields(parseText(txt), true);
+  let n = 0;
+  for (const [k] of PV) { const v = String(tParsed[k] || '').trim(); if (v && v !== curVal(k)) { setField(k, v); n++; } }
   $('#textSheet').classList.remove('on');
   $('#formSheet').scrollTop = 0;
-  toast(n ? `${n}개 항목을 채웠습니다 — 노란 칸을 확인하세요` : '채울 항목을 찾지 못했습니다');
+  toast(n ? `${n}개 칸을 채웠습니다 — 노란 칸을 확인하세요` : '새로 채울 칸이 없습니다');
 }
-$('#aText').onclick = () => openTextSheet('');
+$('#aText').onclick = () => openTextSheet();
 $('#tCancel').onclick = () => $('#textSheet').classList.remove('on');
 $('#tApply').onclick = applyText; $('#tApply2').onclick = applyText;
 $('#tFile').onclick = () => $('#tFileIn').click();
-$('#tFileIn').addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (f) $('#tText').value = await readTxt(f); });
-$('#tSample').onclick = () => { $('#tText').value = TXT_TEMPLATE; };
-$('#tTemplate').onclick = () => download('미팅기록_양식.txt', '﻿' + TXT_TEMPLATE.replace(/\n/g, '\r\n'), 'text/plain');
+$('#tFileIn').addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (f) { $('#tText').value = await readTxt(f); renderPreview(); } });
+$('#tBlank').onclick = () => {
+  $('#tText').value = formToTxt().replace(/^(일시|장소|유형|목적|회사|부서|이름|직책|연락처|이메일|주소|후속 연락일|내부 메모):.*$/gm, '$1: ')
+    .replace(/^참석자:.*$/m, '참석자: 우리측  / 상대측 ').replace(/논의 내용:\n[\s\S]*?\n\n후속/, '논의 내용:\n- \n\n후속')
+    .replace(/^일시: $/m, `일시: ${todayStr()} ${nowHM()}`).replace(/^내부 메모: \n[\s\S]*$/m, '내부 메모: \n');
+  renderPreview();
+};
+$('#tTemplate').onclick = () => download(`미팅기록_${todayStr()}.txt`, '﻿' + $('#tText').value.replace(/\r?\n/g, '\r\n'), 'text/plain');
 // PC: 사진·TXT 끌어다 놓기
 ['dragover', 'dragenter'].forEach(t => $('#formSheet').addEventListener(t, e => { e.preventDefault(); $('#formSheet').classList.add('drop'); }));
 ['dragleave', 'drop'].forEach(t => $('#formSheet').addEventListener(t, e => { if (t === 'dragleave' && e.target !== $('#formSheet')) return; $('#formSheet').classList.remove('drop'); }));

@@ -1,5 +1,5 @@
 // 오프라인 캐시. 앱 파일을 고치면 VERSION을 올릴 것.
-const VERSION = 'v1.3.0';
+const VERSION = 'v1.4.0';
 const APP = 'meeting-app-' + VERSION;
 const CORE = [
   './', './index.html', './manifest.webmanifest',
