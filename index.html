@@ -434,7 +434,7 @@ input.auto,textarea.auto{background:#fff7d1;border-color:#f59e0b}
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v1.4.0';
+const APP_VERSION = 'v1.5.0';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -679,7 +679,8 @@ let formSnap = '';
 function openForm(m, preset){
   editing = m ? JSON.parse(JSON.stringify(m)) : {id: null, date: todayStr(), time: nowHM(), type: '대면', status: '진행중', photos: [], items: [], ...(preset || {})};
   editing.photos ||= []; editing.items ||= [];
-  $('#fTitle').textContent = m ? '미팅 수정' : (preset && preset.company ? '후속 미팅' : '새 미팅');
+  $('#fTitle').textContent = m ? '미팅 수정' : (preset && preset._co ? '같은 회사 새 미팅' : preset && preset.company ? '후속 미팅' : '새 미팅');
+  delete editing._co;
   for (const [k, sel] of Object.entries(F)) $(sel).value = editing[k] || (k === 'status' ? '진행중' : '');
   renderType(); renderDur(); renderPhotos(); knownHint();
   $('#ocrBar').style.display = 'none'; $$('#formSheet .auto').forEach(x => x.classList.remove('auto'));
@@ -759,11 +760,28 @@ function knownHint(){
   const prev = meetings.filter(m => m.id !== editing.id && (nm ? m.name === nm && (!co || m.company === co) : co && m.company === co))
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const h = $('#fKnown');
-  if (!prev.length) { h.style.display = 'none'; return prev; }
-  h.style.display = 'block';
-  h.innerHTML = `📂 예전 미팅 ${prev.length}건 (최근 ${fmtDate(prev[0].date)} · ${esc(prev[0].purpose || '')})`;
+  const coN = co ? new Set(meetings.filter(m => m.id !== editing.id && m.company === co && m.name !== nm).map(m => m.name || '')).size : 0;
+  const parts = [];
+  if (prev.length) parts.push(`📂 예전 미팅 ${prev.length}건 (최근 ${fmtDate(prev[0].date)} · ${esc(prev[0].purpose || '')})`);
+  if (coN) parts.push(`🏢 같은 회사 명함 ${coN}명 <button class="btn" id="fCoCopy" type="button" style="padding:4px 10px;font-size:13px">회사 정보 복사 (이름 제외)</button>`);
+  h.style.display = parts.length ? 'block' : 'none';
+  h.innerHTML = parts.join('<br>');
   return prev;
 }
+// 같은 회사 다른 사람: 이름·명함 사진은 빼고 회사 정보만 (칸마다 최근에 적힌 값, 빈 칸만 채움)
+const CO_KEYS = ['dept', 'title', 'phone', 'email', 'addr'];
+function companyInfo(co, skipId){
+  const o = {company: co};
+  const list = meetings.filter(m => m.id !== skipId && m.company === co).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  for (const k of CO_KEYS) { const m = list.find(x => x[k]); if (m) o[k] = m[k]; }
+  return o;
+}
+$('#fKnown').addEventListener('click', e => {
+  if (e.target.id !== 'fCoCopy') return;
+  const o = companyInfo($('#fCompany').value.trim(), editing.id); delete o.company;
+  const n = applyFields(o, false);
+  toast(n ? `같은 회사 정보 ${n}칸을 채웠습니다 (이름 제외)` : '채울 빈 칸이 없습니다');
+});
 function fillKnown(){
   const prev = knownHint(); if (!prev.length || !$('#fName').value.trim()) return;
   const p = prev[0];
@@ -1287,6 +1305,7 @@ function renderDetail(){
       <button class="btn" id="dShare">📤 공유</button>
     </div>
     ${m.company || m.name ? `<button class="btn primary block" id="dFollow" style="margin-top:8px">🔁 같은 상대 후속 미팅 기록</button>` : ''}
+    ${m.company ? `<button class="btn block" id="dCoCopy" style="margin-top:8px">🏢 같은 회사 다른 사람 기록 (이름 제외 복사)</button>` : ''}
     <div class="grid2">
       <button class="btn" id="dDone">${st === '완료' ? '↩️ 진행중으로' : '✔️ 미팅 건 완료'}</button>
       <button class="btn danger" id="dDel">🗑️ 삭제</button>
@@ -1309,6 +1328,10 @@ $('#dBody').addEventListener('click', async e => {
   else if (id === 'dFollow') {
     const keep = {}; for (const k of ['company', 'dept', 'name', 'title', 'phone', 'email', 'addr', 'ours', 'theirs', 'place']) keep[k] = m[k] || '';
     keep.photos = [...(m.photos || [])];
+    openForm(null, keep);
+  }
+  else if (id === 'dCoCopy') {
+    const keep = companyInfo(m.company, null); keep.place = m.place || ''; keep.ours = m.ours || ''; keep._co = 1;
     openForm(null, keep);
   }
   else if (id === 'dDone') { m.status = (m.status || '진행중') === '완료' ? '진행중' : '완료'; m.updated = Date.now(); await DB.put(m); await reload(); renderDetail(); }
