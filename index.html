@@ -438,7 +438,7 @@ input.auto,textarea.auto{background:#fff7d1;border-color:#f59e0b}
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v1.6.2';
+const APP_VERSION = 'v1.6.3';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1446,7 +1446,19 @@ async function renderInfo(){
   await reload();
   renderInfo();
   try { navigator.storage?.persist?.(); } catch {}
-  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+  // 새 버전이 올라오면 열 때·다시 볼 때 확인해서 바로 바꿈 (폰 홈 화면 앱도)
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    const had = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register('sw.js', {updateViaCache: 'none'}).then(reg => {
+      reg.update().catch(() => {});
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+    }).catch(() => {});
+    let done = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!had || done || document.querySelector('.sheet.on')) return;
+      done = true; location.reload();
+    });
+  }
 })();
 </script>
 </body>

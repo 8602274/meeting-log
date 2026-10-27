@@ -1,5 +1,5 @@
 // 오프라인 캐시. 앱 파일을 고치면 VERSION을 올릴 것.
-const VERSION = 'v1.6.2';
+const VERSION = 'v1.6.3';
 const APP = 'meeting-app-' + VERSION;
 const CORE = [
   './', './index.html', './manifest.webmanifest',
@@ -7,7 +7,7 @@ const CORE = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(APP).then(c => c.addAll(CORE)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(APP).then(c => c.addAll(CORE.map(u => new Request(u, {cache: 'reload'})))).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys()
@@ -27,6 +27,6 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // 그 밖의 앱 파일: 저장본 먼저
+  // 그 밖의 앱 파일: 저장본 먼저 (새 버전 설치 때 HTTP 캐시 건너뛰고 새로 받음)
   e.respondWith(caches.match(req).then(hit => hit || fetch(req)));
 });
