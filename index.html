@@ -300,6 +300,7 @@ input.auto,textarea.auto{background:#fff7d1;border-color:#f59e0b}
     <div class="panel">
       <h3>앱 정보</h3>
       <p class="hint" id="appInfo"></p>
+      <button class="btn block" id="btnUpdate" style="margin-top:10px">🔄 업데이트 확인</button>
     </div>
   </section>
 </main>
@@ -438,7 +439,7 @@ input.auto,textarea.auto{background:#fff7d1;border-color:#f59e0b}
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v1.6.4';
+const APP_VERSION = 'v1.6.5';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1440,6 +1441,37 @@ async function renderInfo(){
   $('#appInfo').innerHTML = txt;
 }
 
+/* 서버에 올라간 버전을 직접 읽어 비교 — 서비스워커 갱신이 늦거나 멈춰도(폰 홈 화면 앱) 새 버전으로 바꿈 */
+async function serverVersion(){
+  const r = await fetch(`./?vcheck=${Date.now()}`, {cache: 'no-store'});
+  const m = /const APP_VERSION = '([^']+)'/.exec(await r.text());
+  return m ? m[1] : null;
+}
+async function forceUpdate(){
+  try { for (const k of await caches.keys()) if (k.startsWith('meeting-app-')) await caches.delete(k); } catch {}
+  try { const reg = await navigator.serviceWorker?.getRegistration(); await reg?.update(); } catch {}
+  location.reload();
+}
+let checking = false;
+async function checkUpdate(manual){
+  if (checking || !location.protocol.startsWith('http')) return;
+  checking = true;
+  try {
+    const v = await serverVersion();
+    if (!v || v === APP_VERSION) { if (manual) toast(`최신 버전입니다 (${APP_VERSION})`); return; }
+    if (!manual && document.querySelector('.sheet.on')) return;   // 입력·상세 화면 중엔 다음에
+    // 막 올린 직후 서버 캐시가 엇갈려 새로고침이 되풀이되지 않게, 같은 버전으로는 2분에 한 번만
+    let tried = {};
+    try { tried = JSON.parse(sessionStorage.getItem('updTry') || '{}'); } catch {}
+    if (!manual && tried.v === v && Date.now() - tried.t < 120000) return;
+    try { sessionStorage.setItem('updTry', JSON.stringify({v, t: Date.now()})); } catch {}
+    toast(`새 버전 ${v}으로 바꿉니다`);
+    setTimeout(forceUpdate, 600);
+  } catch { if (manual) toast('인터넷 연결을 확인해 주세요'); }
+  finally { checking = false; }
+}
+$('#btnUpdate').onclick = () => checkUpdate(true);
+
 (async () => {
   applyTheme();
   await DB.open();
@@ -1453,6 +1485,8 @@ async function renderInfo(){
       reg.update().catch(() => {});
       document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
     }).catch(() => {});
+    checkUpdate(false);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(false); });
     let done = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (!had || done || document.querySelector('.sheet.on')) return;
