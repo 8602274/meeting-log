@@ -6,12 +6,12 @@
 <meta name="theme-color" content="#1d4ed8">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="미팅기록">
+<meta name="apple-mobile-web-app-title" content="명함미팅">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<title>미팅 기록</title>
+<title>명함미팅</title>
 <style>
 :root{
   --bg:#f3f5f9; --card:#ffffff; --text:#1b2230; --sub:#667085; --line:#e1e5ec;
@@ -223,7 +223,7 @@ input.auto,textarea.auto{background:#fff7d1;border-color:#f59e0b}
 <body>
 
 <header>
-  <h1>🤝 미팅 기록</h1>
+  <h1>🤝 명함미팅</h1>
   <span class="count" id="countTxt"></span>
 </header>
 
@@ -438,7 +438,7 @@ input.auto,textarea.auto{background:#fff7d1;border-color:#f59e0b}
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v1.6.0';
+const APP_VERSION = 'v1.6.1';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1390,7 +1390,7 @@ function download(name, text, type){
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 $('#btnExport').onclick = () => {
-  download(`미팅기록_백업_${todayStr()}.json`, JSON.stringify({app: 'meeting-log', version: APP_VERSION, exported: Date.now(), meetings}), 'application/json');
+  download(`명함미팅_백업_${todayStr()}.json`, JSON.stringify({app: 'meeting-log', version: APP_VERSION, exported: Date.now(), meetings}), 'application/json');
   lsSet('lastBackup', Date.now()); renderInfo(); toast('백업 파일을 내려받았습니다');
 };
 $('#btnImport').onclick = () => $('#importFile').click();
@@ -1418,7 +1418,7 @@ $('#btnCsv').onclick = () => {
   const rows = [cols.map(c => q(c[1])).join(',')];
   for (const m of [...meetings].sort((a, b) => (b.date || '').localeCompare(a.date || '')))
     rows.push(cols.map(c => q(m[c[0]])).join(','));
-  download(`미팅기록_${todayStr()}.csv`, '﻿' + rows.join('\r\n'), 'text/csv');
+  download(`명함미팅_${todayStr()}.csv`, '﻿' + rows.join('\r\n'), 'text/csv');
 };
 
 /* ---------- 화면 · 설치 · 정보 ---------- */
@@ -1430,7 +1430,7 @@ let installEvt = null;
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; $('#btnInstall').style.display = 'block'; });
 $('#btnInstall').onclick = async () => { if (!installEvt) return; installEvt.prompt(); await installEvt.userChoice; installEvt = null; $('#btnInstall').style.display = 'none'; };
 async function renderInfo(){
-  let txt = `미팅 기록 ${APP_VERSION} · 기록 ${meetings.length}건`;
+  let txt = `명함미팅 ${APP_VERSION} · 기록 ${meetings.length}건`;
   const lb = lsGet('lastBackup', 0);
   txt += `<br>마지막 백업: ${lb ? new Date(lb).toLocaleString('ko-KR') : '없음'}`;
   try {
