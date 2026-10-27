@@ -265,8 +265,24 @@ input.auto,textarea.auto{background:#fff7d1;border-color:#f59e0b}
   <!-- 설정 -->
   <section class="tab" id="tab-set">
     <div class="panel">
+      <h3>🔄 PC·폰 자동 동기화</h3>
+      <p class="hint" id="syncStatus">꺼짐 — 아래에 GitHub 토큰을 넣으면 이 기기 기록이 비공개 저장소와 자동으로 맞춰집니다.</p>
+      <div id="syncSetup">
+        <input id="syncRepo" placeholder="저장소 (예: 8602274/meeting-log-data)" style="width:100%;margin:8px 0 6px">
+        <input id="syncToken" type="password" autocomplete="off" placeholder="GitHub 토큰 (github_pat_…)" style="width:100%;margin-bottom:8px">
+        <button class="btn primary block" id="btnSyncOn">연결하고 동기화</button>
+        <p class="hint" style="margin-top:8px">토큰 만들기: <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub → 새 토큰</a>
+          → Repository access: <b>Only select repositories</b> → <b>meeting-log-data</b> → Permissions: <b>Contents = Read and write</b> → 만들기 → 복사해서 위에 붙이기.
+          PC·폰 각각 한 번씩 넣으면 됩니다(같은 토큰 가능). 토큰은 이 기기에만 저장됩니다.</p>
+      </div>
+      <div class="row" id="syncCtl" style="display:none;margin-top:8px">
+        <button class="btn primary" id="btnSyncNow">지금 동기화</button>
+        <button class="btn" id="btnSyncOff">연결 끊기</button>
+      </div>
+    </div>
+    <div class="panel">
       <h3>백업</h3>
-      <p class="hint">기록은 이 기기의 브라우저 안에만 저장됩니다. 브라우저 데이터를 지우거나 기기를 바꾸면 사라지니, 가끔 백업 파일을 내려받아 두세요. 다른 기기(PC↔폰)로 옮길 때도 이 파일을 불러오면 됩니다.</p>
+      <p class="hint">기록은 이 기기의 브라우저 안에 저장됩니다(동기화를 켜면 GitHub 비공개 저장소에도). 브라우저 데이터를 지우거나 기기를 바꾸면 사라지니, 가끔 백업 파일을 내려받아 두세요.</p>
       <div class="row">
         <button class="btn primary" id="btnExport">백업 내려받기</button>
         <button class="btn" id="btnImport">백업 불러오기</button>
@@ -439,7 +455,7 @@ input.auto,textarea.auto{background:#fff7d1;border-color:#f59e0b}
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v1.6.5';
+const APP_VERSION = 'v1.7.0';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1422,6 +1438,130 @@ $('#btnCsv').onclick = () => {
   download(`명함미팅_${todayStr()}.csv`, '﻿' + rows.join('\r\n'), 'text/csv');
 };
 
+/* ---------- PC·폰 동기화 (GitHub 비공개 저장소, 기록 하나 = meetings/<id>.json) ----------
+   지난번 맞춘 상태(id → 원격 sha·updated)를 기억해 두고 비교:
+   원격만 바뀜 → 받기 / 이 기기만 바뀜 → 올리기 / 둘 다 바뀜 → updated 가 큰 쪽
+   지난번엔 있었는데 원격에서 없어짐 → 다른 기기에서 지운 것 → 여기서도 지움 (그 뒤 여기서 고쳤으면 다시 올림)
+   지난번엔 있었는데 여기서 없어짐 → 여기서 지운 것 → 원격도 지움 (그 뒤 원격에서 고쳤으면 받음) */
+const Sync = {
+  busy: false, again: false, timer: null, last: 0,
+  cfg(){ return lsGet('syncCfg', null); },
+  async api(path, opt = {}){
+    const c = this.cfg();
+    const r = await fetch(`https://api.github.com/repos/${c.repo}/${path}`, {
+      cache: 'no-store', ...opt,
+      headers: {Authorization: `Bearer ${c.token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...(opt.headers || {})}
+    });
+    if (!r.ok) { const e = new Error(`${r.status}`); e.status = r.status; throw e; }
+    return r;
+  },
+  b64(str){
+    const bytes = new TextEncoder().encode(str);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(bin);
+  },
+  async remote(){   // id → sha
+    const map = new Map();
+    try {
+      const t = await (await this.api('git/trees/main?recursive=1')).json();
+      for (const e of t.tree || []) {
+        const m = /^meetings\/(.+)\.json$/.exec(e.path);
+        if (m && e.type === 'blob') map.set(m[1], e.sha);
+      }
+    } catch (e) { if (e.status !== 404 && e.status !== 409) throw e; }   // 빈 저장소
+    return map;
+  },
+  async get(sha){ return JSON.parse(await (await this.api(`git/blobs/${sha}`, {headers: {Accept: 'application/vnd.github.raw+json'}})).text()); },
+  async put(m, sha){
+    const body = {message: `${m.company || ''} ${m.name || ''} ${m.date || ''}`.trim() || m.id, content: this.b64(JSON.stringify(m)), branch: 'main'};
+    if (sha) body.sha = sha;
+    return (await (await this.api(`contents/meetings/${m.id}.json`, {method: 'PUT', body: JSON.stringify(body)})).json()).content.sha;
+  },
+  async del(id, sha){
+    await this.api(`contents/meetings/${id}.json`, {method: 'DELETE', body: JSON.stringify({message: `삭제 ${id}`, sha, branch: 'main'})});
+  },
+  soon(){ if (!this.cfg()) return; clearTimeout(this.timer); this.timer = setTimeout(() => this.run(), 2500); },
+  async run(manual){
+    if (!this.cfg()) return;
+    if (this.busy) { this.again = true; return; }
+    this.busy = true; this.status('동기화 중…');
+    let up = 0, down = 0, gone = 0;
+    try {
+      const state = lsGet('syncState', {});   // id → {sha, updated}
+      const rem = await this.remote();
+      const local = new Map((await DB.all()).map(m => [m.id, m]));
+      for (const [id, m] of local) {
+        const st = state[id], rsha = rem.get(id), mu = m.updated || 0;
+        if (rsha) {
+          if (st && st.sha === rsha) {                       // 원격은 그대로
+            if (mu > (st.updated || 0)) { state[id] = {sha: await this.put(m, rsha), updated: mu}; up++; }
+          } else {                                           // 원격이 바뀌었거나 처음 맞춤
+            const r = await this.get(rsha), ru = r.updated || 0;
+            if (ru > mu) { await DB.put(r); state[id] = {sha: rsha, updated: ru}; down++; }
+            else if (mu > ru) { state[id] = {sha: await this.put(m, rsha), updated: mu}; up++; }
+            else state[id] = {sha: rsha, updated: mu};
+          }
+        } else if (st && mu <= (st.updated || 0)) {            // 다른 기기에서 지움
+          await DB.del(id); delete state[id]; gone++;
+        } else { state[id] = {sha: await this.put(m), updated: mu}; up++; }
+      }
+      for (const [id, rsha] of rem) {
+        if (local.has(id)) continue;
+        const st = state[id];
+        if (st && st.sha === rsha) { await this.del(id, rsha); delete state[id]; gone++; }   // 여기서 지움
+        else { const r = await this.get(rsha); await DB.put(r); state[id] = {sha: rsha, updated: r.updated || 0}; down++; }
+      }
+      lsSet('syncState', state);
+      this.last = Date.now(); lsSet('syncLast', this.last);
+      if (down || gone) { await reload(); if (detailId && findM(detailId)) renderDetail(); }
+      const msg = [up && `올림 ${up}`, down && `받음 ${down}`, gone && `지움 ${gone}`].filter(Boolean).join(' · ');
+      this.status(`켜짐 · 마지막 동기화 ${new Date(this.last).toLocaleTimeString('ko-KR')}${msg ? ' · ' + msg : ''}`);
+      if (down || gone) toast(`다른 기기 기록을 맞췄습니다 (${msg})`);
+      else if (manual) toast(msg ? `동기화 완료 (${msg})` : '이미 같습니다');
+      renderInfo();
+    } catch (e) {
+      const why = e.status === 401 ? '토큰이 틀렸거나 만료됨' : e.status === 403 || e.status === 404 ? '저장소 이름 또는 토큰 권한(Contents 읽기·쓰기) 확인'
+        : e.status === 409 ? '동시에 고쳐져 다음에 다시 맞춤' : '인터넷 연결 확인';
+      this.status(`⚠️ 동기화 실패 — ${why}`);
+      if (manual) toast(`동기화 실패: ${why}`);
+    } finally {
+      this.busy = false;
+      if (this.again) { this.again = false; this.soon(); }
+    }
+  },
+  status(t){ $('#syncStatus').textContent = t; },
+  show(){
+    const c = this.cfg();
+    $('#syncSetup').style.display = c ? 'none' : '';
+    $('#syncCtl').style.display = c ? '' : 'none';
+    if (!c) { this.status('꺼짐 — 아래에 GitHub 토큰을 넣으면 이 기기 기록이 비공개 저장소와 자동으로 맞춰집니다.'); $('#syncRepo').value ||= '8602274/meeting-log-data'; }
+    else { const l = lsGet('syncLast', 0); this.status(`켜짐 (${c.repo})${l ? ' · 마지막 동기화 ' + new Date(l).toLocaleString('ko-KR') : ''}`); }
+  }
+};
+// 이 기기에서 저장·삭제하면 잠시 뒤 올림 (동기화가 받아 넣는 중엔 다시 걸지 않음)
+for (const k of ['put', 'del']) {
+  const orig = DB[k].bind(DB);
+  DB[k] = async v => { await orig(v); if (!Sync.busy) Sync.soon(); };
+}
+$('#btnSyncOn').onclick = async () => {
+  const repo = $('#syncRepo').value.trim().replace(/^https:\/\/github\.com\//, '').replace(/\.git$|\/$/g, ''), token = $('#syncToken').value.trim();
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo) || !token) { toast('저장소(이름/저장소)와 토큰을 넣어 주세요'); return; }
+  lsSet('syncCfg', {repo, token}); lsSet('syncState', {});
+  $('#syncToken').value = ''; Sync.show(); await Sync.run(true);
+  if ($('#syncStatus').textContent.startsWith('⚠️')) { lsSet('syncCfg', null); Sync.show(); $('#syncRepo').value = repo; toast('연결 실패 — 토큰·저장소를 확인해 주세요'); }
+};
+$('#btnSyncNow').onclick = () => Sync.run(true);
+$('#btnSyncOff').onclick = () => {
+  if (!confirmTwice($('#btnSyncOff'), '한 번 더 누르면 연결을 끊습니다')) return;
+  lsSet('syncCfg', null); lsSet('syncState', {}); Sync.show(); toast('연결을 끊었습니다 (이 기기 기록은 그대로)');
+};
+function confirmTwice(btn, msg){
+  if (btn.dataset.armed) { delete btn.dataset.armed; return true; }
+  btn.dataset.armed = '1'; toast(msg); setTimeout(() => delete btn.dataset.armed, 3000); return false;
+}
+Sync.show();
+
 /* ---------- 화면 · 설치 · 정보 ---------- */
 function applyTheme(){ const t = lsGet('theme', ''); if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; $('#theme').value = t; }
 $('#theme').addEventListener('change', () => { lsSet('theme', $('#theme').value); applyTheme(); });
@@ -1492,6 +1632,11 @@ $('#btnUpdate').onclick = () => checkUpdate(true);
       if (!had || done || document.querySelector('.sheet.on')) return;
       done = true; location.reload();
     });
+  }
+  // PC·폰 동기화: 열 때, 그리고 다시 볼 때(30초 넘게 지났으면)
+  if (location.protocol.startsWith('http')) {
+    Sync.run();
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - Sync.last > 30000) Sync.run(); });
   }
 })();
 </script>
