@@ -429,7 +429,7 @@ input.auto,textarea.auto{background:#fff7d1;border-color:#f59e0b}
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v1.2.0';
+const APP_VERSION = 'v1.2.1';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1205,14 +1205,6 @@ const TXT_TEMPLATE = `[미팅 기록]
 - 부자재 단가 5% 인하 요청
 - 납기 11월 말 확정 필요
 
-결정사항:
-- 11/5까지 수정 견적 제출
-
-할 일:
-- 수정 견적서 송부 (김대리, ~11/5)
-- 샘플 발송 (양팀장, ~11/10)
-
-다음 미팅: 11/10 14:00 본사
 후속 연락일: 11/7
 상태: 진행중
 내부 메모: 가격보다 납기 중시
