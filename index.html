@@ -67,6 +67,10 @@ textarea{min-height:90px;resize:vertical;line-height:1.6}
 .badge.late{background:var(--late);color:#fff}
 .badge.done{background:transparent;color:var(--sub);border:1px solid var(--line)}
 .badge.hold{background:transparent;color:var(--warn);border:1px solid var(--warn)}
+/* 목록은 회사·이름만 한 줄로 작게 */
+.item.slim{padding:8px 12px;margin-bottom:4px;border-radius:10px;gap:8px;font-size:13px;line-height:1.4}
+.item.slim .co{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto;min-width:0}
+.item.slim .nm{color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
 .empty{text-align:center;color:var(--sub);padding:60px 10px;line-height:1.7}
 
 /* 할 일 */
@@ -227,7 +231,7 @@ input.auto,textarea.auto{background:#fff7d1;border-color:#f59e0b}
   <!-- 목록 -->
   <section class="tab on" id="tab-list">
     <div class="tools">
-      <input id="q" type="search" placeholder="회사·이름·내용 검색">
+      <input id="q" type="search" placeholder="회사·이름 검색 (초성 ㅅㅅ 도 됨)">
       <select id="sort" style="flex:0 0 110px">
         <option value="date">최신순</option>
         <option value="old">오래된순</option>
@@ -434,7 +438,7 @@ input.auto,textarea.auto{background:#fff7d1;border-color:#f59e0b}
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v1.5.0';
+const APP_VERSION = 'v1.6.0';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -528,12 +532,16 @@ function haystack(m){
   return [m.company, m.dept, m.name, m.title, m.phone, m.email, m.place, m.purpose, m.ours, m.theirs,
     m.notes, m.decisions, m.next, m.memo, m.date, ...items(m).map(i => i.task + ' ' + i.who)].join(' ').toLowerCase();
 }
+// 초성 검색: '삼성' → 'ㅅㅅ'
+const CHO = 'ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ';
+const cho = t => String(t || '').replace(/[가-힣]/g, c => CHO[Math.floor((c.charCodeAt(0) - 0xAC00) / 588)]);
+const choOnly = w => /^[ㄱ-ㅎ]+$/.test(w);
 function filtered(){
   const q = $('#q').value.trim().toLowerCase();
   let arr = meetings.filter(m => {
     if (filter === '__late' && !isLate(m)) return false;
     if (filter && filter !== '__late' && (m.status || '진행중') !== filter) return false;
-    return !q || q.split(/\s+/).every(w => haystack(m).includes(w));
+    return !q || q.split(/\s+/).every(w => choOnly(w) ? cho((m.company || '') + ' ' + (m.name || '')).includes(w) : haystack(m).includes(w));
   });
   const s = $('#sort').value;
   const key = m => (m.date || '') + ' ' + (m.time || '') + ' ' + (m.created || '');
@@ -547,14 +555,8 @@ function itemHtml(m){
   const badges = (late ? `<span class="badge late">기한 지남</span>` : '') +
     (op ? `<span class="badge">할 일 ${op}</span>` : '') +
     (st === '완료' ? `<span class="badge done">완료</span>` : st === '보류' ? `<span class="badge hold">보류</span>` : '');
-  const ph = (m.photos || [])[0];
-  const sub = [m.dept, m.title].filter(Boolean).join(' ');
-  return `<div class="item" data-id="${m.id}">
-    <div class="thumb">${ph ? `<img src="${ph}" alt="" loading="lazy">` : typeIcon(m.type)}</div>
-    <div class="info">
-      <div class="name">${esc(who(m))}${sub ? ` <small style="color:var(--sub);font-weight:400">${esc(sub)}</small>` : ''}</div>
-      <div class="meta">${fmtDate(m.date)}${m.time ? ' ' + m.time : ''} · ${esc(m.purpose || m.type || '')}${badges}</div>
-    </div></div>`;
+  return `<div class="item slim" data-id="${m.id}" title="${esc(fmtDate(m.date) + ' ' + (m.purpose || ''))}">
+    <span class="co">${esc(m.company || '(회사 없음)')}</span><span class="nm">${esc(m.name || '')}</span></div>`;
 }
 function renderList(){
   const arr = filtered();
