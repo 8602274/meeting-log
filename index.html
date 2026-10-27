@@ -223,11 +223,6 @@ input.auto,textarea.auto{background:#fff7d1;border-color:#f59e0b}
     <div id="list"></div>
   </section>
 
-  <!-- 할 일 -->
-  <section class="tab" id="tab-todo">
-    <div class="chips" id="todoChips"></div>
-    <div id="todoList"></div>
-  </section>
 
   <!-- 달력 -->
   <section class="tab" id="tab-cal">
@@ -238,7 +233,7 @@ input.auto,textarea.auto{background:#fff7d1;border-color:#f59e0b}
       <button id="calToday" class="today">오늘</button>
     </div>
     <div class="cal" id="cal"></div>
-    <div class="calLegend">파란 숫자 = 그날 미팅 수 · 📌 = 다음 미팅 예정 · 빨간 ⏰ = 그날까지 할 일</div>
+    <div class="calLegend">파란 숫자 = 그날 미팅 수 · 빨간 ⏰ = 후속 연락일</div>
     <div id="calList"></div>
   </section>
 
@@ -294,7 +289,6 @@ input.auto,textarea.auto{background:#fff7d1;border-color:#f59e0b}
 
 <nav>
   <button data-tab="list" class="on"><i>📋</i>목록</button>
-  <button data-tab="todo"><i>✅</i>할 일<span class="dot" id="todoDot"></span></button>
   <button data-tab="cal"><i>📅</i>달력</button>
   <button data-tab="card"><i>📇</i>명함첩</button>
   <button data-tab="set"><i>⚙️</i>설정</button>
@@ -364,21 +358,10 @@ input.auto,textarea.auto{background:#fff7d1;border-color:#f59e0b}
     <div class="sec">
       <h3>📝 논의 내용</h3>
       <textarea id="fNotes" style="min-height:150px" placeholder="- 안건 1: ...&#10;- 안건 2: ..."></textarea>
-      <h3 style="margin-top:14px">✅ 결정사항</h3>
-      <textarea id="fDecisions" style="min-height:70px" placeholder="합의·결정된 내용"></textarea>
     </div>
 
     <div class="sec">
-      <h3>📌 액션아이템 (할 일 · 담당 · 기한)</h3>
-      <div id="fItems"></div>
-      <button class="btn block sm" id="fAddItem" type="button" style="margin-top:10px">＋ 할 일 추가</button>
-    </div>
-
-    <div class="sec">
-      <h3>➡️ 다음 단계</h3>
-      <label class="f">다음 미팅 날짜 · 시간</label>
-      <div class="row"><input id="fNextDate" type="date"><input id="fNextTime" type="time" step="300"></div>
-      <label class="f">다음 미팅 장소 · 메모</label><input id="fNext" placeholder="예: 본사 3층 회의실">
+      <h3>➡️ 후속</h3>
       <div class="row">
         <div><label class="f">후속 연락일</label><input id="fDue" type="date"></div>
         <div><label class="f">상태</label><select id="fStatus"><option>진행중</option><option>완료</option><option>보류</option></select></div>
@@ -412,8 +395,8 @@ input.auto,textarea.auto{background:#fff7d1;border-color:#f59e0b}
     <button id="tApply">채우기</button>
   </div>
   <div class="body">
-    <p class="hint" style="margin-top:0">미팅 메모·회의록 글을 붙여넣거나 TXT 파일을 열면 날짜·시간·장소·상대방·참석자·논의 내용·결정사항·할 일·다음 미팅을 찾아 칸마다 채웁니다.
-      <b>회사:</b> <b>결정사항:</b>처럼 항목 이름을 앞에 쓰면 정확합니다. 이 앱의 [회의록 복사] 글도 그대로 읽습니다.</p>
+    <p class="hint" style="margin-top:0">미팅 메모·회의록 글을 붙여넣거나 TXT 파일을 열면 날짜·시간·장소·상대방·참석자·논의 내용·후속 연락일을 찾아 칸마다 채웁니다.
+      <b>회사:</b> <b>논의 내용:</b>처럼 항목 이름을 앞에 쓰면 정확합니다. 이 앱의 [회의록 복사] 글도 그대로 읽습니다.</p>
     <div class="row" style="margin-bottom:8px">
       <button class="btn" id="tFile" type="button">📂 TXT 파일 열기</button>
       <button class="btn" id="tSample" type="button">📝 양식 넣어 보기</button>
@@ -429,7 +412,7 @@ input.auto,textarea.auto{background:#fff7d1;border-color:#f59e0b}
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v1.2.1';
+const APP_VERSION = 'v1.3.0';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -482,7 +465,6 @@ let meetings = [];
 let filter = '';
 let editing = null;    // 입력 중인 기록(사본)
 let detailId = null;
-let todoShowDone = false;
 
 async function reload(){
   meetings = await DB.all();
@@ -502,9 +484,7 @@ function renderAll(){
   const late = meetings.filter(isLate).length;
   $('#countTxt').textContent = `총 ${meetings.length}건${late ? ` · 기한 지남 ${late}` : ''}`;
   const openN = meetings.filter(m => m.status !== '완료').reduce((s, m) => s + openItems(m).filter(i => i.due && i.due < todayStr()).length, 0);
-  const dot = $('#todoDot'); dot.textContent = openN; dot.style.display = openN ? 'block' : 'none';
   renderChips(); renderList();
-  if ($('#tab-todo').classList.contains('on')) renderTodo();
   if ($('#tab-cal').classList.contains('on')) renderCal();
   if ($('#tab-card').classList.contains('on')) renderCards();
   $('#coList').innerHTML = [...new Set(meetings.map(m => m.company).filter(Boolean))].map(n => `<option value="${esc(n)}">`).join('');
@@ -557,7 +537,7 @@ function itemHtml(m){
 function renderList(){
   const arr = filtered();
   if (!meetings.length) {
-    $('#list').innerHTML = `<div class="empty">아직 미팅 기록이 없습니다.<br>오른쪽 아래 <b>＋</b>를 눌러 첫 미팅을 남겨 보세요.<br><br>📷 명함을 찍어 두고, 논의 내용·결정사항·할 일을 함께 적을 수 있어요.</div>`;
+    $('#list').innerHTML = `<div class="empty">아직 미팅 기록이 없습니다.<br>오른쪽 아래 <b>＋</b>를 눌러 첫 미팅을 남겨 보세요.<br><br>📷 명함을 찍어 두고, 논의 내용을 함께 적을 수 있어요.</div>`;
     return;
   }
   if (!arr.length) { $('#list').innerHTML = `<div class="empty">조건에 맞는 미팅이 없습니다.</div>`; return; }
@@ -581,7 +561,6 @@ function showTab(t){
   $$('nav button').forEach(x => x.classList.toggle('on', x.dataset.tab === t));
   $$('.tab').forEach(x => x.classList.toggle('on', x.id === 'tab-' + t));
   $('#fab').style.display = t === 'set' ? 'none' : '';
-  if (t === 'todo') renderTodo();
   if (t === 'cal') renderCal();
   if (t === 'card') renderCards();
   window.scrollTo(0, 0);
@@ -593,29 +572,6 @@ function allTodos(){
   for (const m of meetings) items(m).forEach((it, idx) => out.push({m, it, idx}));
   return out;
 }
-function renderTodo(){
-  const all = allTodos(), t = todayStr();
-  const open = all.filter(x => !x.it.done), late = open.filter(x => x.it.due && x.it.due < t);
-  $('#todoChips').innerHTML = `<button class="chip ${!todoShowDone?'on':''}" data-d="0">남은 할 일 ${open.length}${late.length ? ` (⏰${late.length})` : ''}</button>
-    <button class="chip ${todoShowDone?'on':''}" data-d="1">완료 포함 전체 ${all.length}</button>`;
-  const arr = (todoShowDone ? all : open).sort((a, b) =>
-    (a.it.done - b.it.done) || (a.it.due || '9999').localeCompare(b.it.due || '9999') || (b.m.date || '').localeCompare(a.m.date || ''));
-  if (!arr.length) { $('#todoList').innerHTML = `<div class="empty">${all.length ? '남은 할 일이 없습니다 👍' : '미팅에서 액션아이템을 추가하면<br>여기에 모아 보여 줍니다.'}</div>`; return; }
-  $('#todoList').innerHTML = arr.map(({m, it, idx}) => {
-    const lt = !it.done && it.due && it.due < t;
-    const dueTxt = it.due ? `<span class="due">${it.due === t ? '오늘까지' : lt ? `${fmtDate(it.due)} 지남` : fmtDate(it.due) + '까지'}</span>` : '';
-    return `<div class="todo ${it.done ? 'done' : ''} ${lt ? 'late' : ''}">
-      <input type="checkbox" data-m="${m.id}" data-i="${idx}" ${it.done ? 'checked' : ''}>
-      <div class="t"><b>${esc(it.task)}</b>
-        <div class="m" data-open="${m.id}">${[dueTxt, it.who && '👤 ' + esc(it.who), '🤝 ' + esc(who(m))].filter(Boolean).join(' · ')}</div></div></div>`;
-  }).join('');
-}
-$('#todoChips').addEventListener('click', e => { const b = e.target.closest('.chip'); if (!b) return; todoShowDone = b.dataset.d === '1'; renderTodo(); });
-$('#todoList').addEventListener('click', async e => {
-  const cb = e.target.closest('input[type=checkbox]');
-  if (cb) { await toggleItem(cb.dataset.m, +cb.dataset.i, cb.checked); return; }
-  const o = e.target.closest('[data-open]'); if (o) openDetail(o.dataset.open);
-});
 async function toggleItem(mid, idx, done){
   const m = findM(mid); if (!m || !m.items[idx]) return;
   m.items[idx].done = done; m.updated = Date.now();
@@ -634,37 +590,27 @@ function renderCal(){
   for (const m of meetings) if (m.date) (byDay[m.date] ||= []).push(m);
   for (const {m, it} of allTodos()) if (it.due && !it.done) (dueDay[it.due] ||= []).push({m, it});
   for (const m of meetings) if (m.due && m.status !== '완료') (dueDay[m.due] ||= []).push({m, it: {task: '후속 연락'}});
-  // 다음 미팅 예정 — 그 날짜에 이미 같은 상대 미팅을 기록했으면 빼기
-  const planDay = {};
-  for (const m of meetings) if (m.nextDate && !(byDay[m.nextDate] || []).some(x => x.id !== m.id && x.company === m.company && x.name === m.name))
-    (planDay[m.nextDate] ||= []).push(m);
   let html = WD.map((w, i) => `<div class="wd ${i===0?'sun':i===6?'sat':''}">${w}</div>`).join('');
   const first = new Date(y, mo, 1), days = new Date(y, mo + 1, 0).getDate();
   for (let i = 0; i < first.getDay(); i++) html += `<div class="d out"></div>`;
   for (let d = 1; d <= days; d++) {
     const ds = `${y}-${pad(mo+1)}-${pad(d)}`, dw = (first.getDay() + d - 1) % 7;
-    const n = (byDay[ds] || []).length, du = (dueDay[ds] || []).length, pl = (planDay[ds] || []).length;
+    const n = (byDay[ds] || []).length, du = (dueDay[ds] || []).length;
     html += `<button class="d ${dw===0?'sun':dw===6?'sat':''} ${n?'has':''} ${ds===t?'now':''} ${ds===calSel?'sel':''}" data-d="${ds}">
-      <span class="n">${d}</span>${n ? `<span class="k">${n}</span>` : ''}${pl ? `<span class="du" style="color:var(--accent)">📌${pl > 1 ? pl : ''}</span>` : ''}${du ? `<span class="du">⏰${du > 1 ? du : ''}</span>` : ''}</button>`;
+      <span class="n">${d}</span>${n ? `<span class="k">${n}</span>` : ''}${du ? `<span class="du">⏰${du > 1 ? du : ''}</span>` : ''}</button>`;
   }
   $('#cal').innerHTML = html;
   if (!calSel) { $('#calList').innerHTML = ''; return; }
-  const ms = byDay[calSel] || [], ds = dueDay[calSel] || [], ps = planDay[calSel] || [];
+  const ms = byDay[calSel] || [], ds = dueDay[calSel] || [];
   $('#calList').innerHTML = `<div class="calDay">${fmtDate(calSel)} ${ms.length ? `미팅 ${ms.length}건` : ''}</div>` +
     (ms.map(itemHtml).join('') || '') +
-    (ps.length ? `<div class="calDay" style="color:var(--accent)">📌 예정된 미팅</div>` +
-      ps.map(m => `<div class="todo"><div class="t"><b>${esc(who(m))}</b> ${m.nextTime ? `<span class="badge">${m.nextTime}</span>` : ''}
-        <div class="m" data-open="${m.id}">${esc(m.next || '')}${m.next ? ' · ' : ''}지난 미팅 ${fmtDate(m.date)} ${esc(m.purpose || '')}</div>
-        <button class="btn sm" data-plan="${m.id}" style="margin-top:8px">＋ 이 미팅 기록하기</button></div></div>`).join('') : '') +
-    (ds.length ? `<div class="calDay" style="color:var(--late)">⏰ 이날까지 할 일</div>` +
+    (ds.length ? `<div class="calDay" style="color:var(--late)">⏰ 이날 후속 연락</div>` +
       ds.map(({m, it}) => `<div class="todo"><div class="t"><b>${esc(it.task)}</b><div class="m" data-open="${m.id}">🤝 ${esc(who(m))}</div></div></div>`).join('') : '') +
     (!ms.length ? `<button class="btn block" id="calAdd" style="margin-top:8px">＋ 이날 미팅 기록하기</button>` : '');
 }
 $('#cal').addEventListener('click', e => { const b = e.target.closest('.d[data-d]'); if (!b) return; calSel = calSel === b.dataset.d ? '' : b.dataset.d; renderCal(); });
 $('#calList').addEventListener('click', e => {
   if (e.target.id === 'calAdd') { openForm(null, {date: calSel}); return; }
-  const pb = e.target.closest('[data-plan]');
-  if (pb) { detailId = pb.dataset.plan; renderDetail(); $('#dFollow')?.click(); return; }
   const o = e.target.closest('[data-open]'); if (o) openDetail(o.dataset.open);
 });
 $('#calPrev').onclick = () => { calYM = calYM[1] ? [calYM[0], calYM[1]-1] : [calYM[0]-1, 11]; renderCal(); };
@@ -704,7 +650,7 @@ $('#cardGrid').addEventListener('click', e => { const b = e.target.closest('.bc'
 /* ---------- 입력 폼 ---------- */
 const F = {date:'#fDate', time:'#fTime', end:'#fEnd', place:'#fPlace', purpose:'#fPurpose',
   company:'#fCompany', dept:'#fDept', name:'#fName', title:'#fTitle2', phone:'#fPhone', email:'#fEmail', addr:'#fAddr',
-  ours:'#fOurs', theirs:'#fTheirs', notes:'#fNotes', decisions:'#fDecisions', nextDate:'#fNextDate', nextTime:'#fNextTime', next:'#fNext',
+  ours:'#fOurs', theirs:'#fTheirs', notes:'#fNotes',
   due:'#fDue', status:'#fStatus', memo:'#fMemo'};
 let formSnap = '';
 
@@ -713,7 +659,7 @@ function openForm(m, preset){
   editing.photos ||= []; editing.items ||= [];
   $('#fTitle').textContent = m ? '미팅 수정' : (preset && preset.company ? '후속 미팅' : '새 미팅');
   for (const [k, sel] of Object.entries(F)) $(sel).value = editing[k] || (k === 'status' ? '진행중' : '');
-  renderType(); renderDur(); renderPhotos(); renderItems(); knownHint();
+  renderType(); renderDur(); renderPhotos(); knownHint();
   $('#ocrBar').style.display = 'none'; $$('#formSheet .auto').forEach(x => x.classList.remove('auto'));
   $('#formSheet').classList.add('on'); $('#formSheet').scrollTop = 0;
   formSnap = JSON.stringify(collect());
@@ -739,7 +685,6 @@ $('#fNow').onclick = () => { $('#fDate').value = todayStr(); $('#fTime').value =
 $('#fTime').addEventListener('change', () => { if ($('#fTime').value && !$('#fEnd').value) $('#fEnd').value = addMin($('#fTime').value, 60); renderDur(); });
 $('#fEnd').addEventListener('change', renderDur);
 $('#fDur').addEventListener('click', e => { const b = e.target.closest('.chip'); if (!b || !$('#fTime').value) return; $('#fEnd').value = addMin($('#fTime').value, +b.dataset.n); renderDur(); });
-$('#fNextDate').addEventListener('change', () => { if ($('#fNextDate').value && !$('#fNextTime').value) $('#fNextTime').value = $('#fTime').value || '10:00'; });
 
 function renderPhotos(){
   $('#fPhotos').innerHTML = editing.photos.map((p, i) => `<div class="ph"><img src="${p}" data-v="${i}" alt=""><button type="button" data-x="${i}">✕</button></div>`).join('') +
@@ -785,29 +730,6 @@ function shrink(file, max = 1600){
   });
 }
 
-function renderItems(){
-  $('#fItems').innerHTML = editing.items.length ? editing.items.map((it, i) => `<div class="aiRow ${it.done ? 'done' : ''}" data-i="${i}">
-      <input type="checkbox" data-k="done" ${it.done ? 'checked' : ''} title="완료">
-      <input class="task" data-k="task" value="${esc(it.task)}" placeholder="할 일">
-      <input class="who" data-k="who" value="${esc(it.who)}" placeholder="담당">
-      <input class="due" data-k="due" type="date" value="${esc(it.due)}">
-      <button type="button" class="x" title="지우기">✕</button></div>`).join('')
-    : `<p class="hint" style="margin:8px 0 0">견적서 송부, 샘플 발송처럼 미팅 후 해야 할 일을 적어 두면 [할 일] 탭에 모입니다.</p>`;
-}
-$('#fItems').addEventListener('input', e => {
-  const r = e.target.closest('.aiRow'), k = e.target.dataset.k; if (!r || !k) return;
-  const it = editing.items[+r.dataset.i];
-  it[k] = k === 'done' ? e.target.checked : e.target.value;
-  if (k === 'done') r.classList.toggle('done', it.done);
-});
-$('#fItems').addEventListener('click', e => {
-  if (!e.target.closest('.x')) return;
-  editing.items.splice(+e.target.closest('.aiRow').dataset.i, 1); renderItems();
-});
-$('#fAddItem').onclick = () => {
-  editing.items.push({task: '', who: '', due: '', done: false}); renderItems();
-  const rows = $$('#fItems .aiRow .task'); rows[rows.length - 1]?.focus();
-};
 
 // 아는 상대: 회사+이름이 예전 기록과 같으면 연락처를 채워 줌
 function knownHint(){
@@ -849,7 +771,7 @@ $('#fCancel').onclick = () => {
 $('#fab').onclick = () => openForm(null, calSel && $('#tab-cal').classList.contains('on') ? {date: calSel} : null);
 
 /* ---------- 자동 입력: 채운 칸은 노랗게 (고치면 원래대로) ---------- */
-const TEXTAREAS = ['notes', 'decisions', 'memo'];
+const TEXTAREAS = ['notes', 'memo'];
 function applyFields(o, overwrite){
   let n = 0;
   for (const [k, sel] of Object.entries(F)) {
@@ -861,7 +783,6 @@ function applyFields(o, overwrite){
     el.classList.add('auto'); n++;
   }
   if (o.type && TYPES.some(t => t[0] === o.type) && editing.type !== o.type) { editing.type = o.type; renderType(); n++; }
-  if (o.items?.length) { editing.items.push(...o.items); renderItems(); n++; }
   renderDur();
   if (o.name) fillKnown(); else knownHint();
   return n;
@@ -1302,10 +1223,7 @@ $('#dBody').addEventListener('click', async e => {
   else if (id === 'dFollow') {
     const keep = {}; for (const k of ['company', 'dept', 'name', 'title', 'phone', 'email', 'addr', 'ours', 'theirs', 'place']) keep[k] = m[k] || '';
     keep.photos = [...(m.photos || [])];
-    keep.items = openItems(m).map(i => ({...i}));
-    if (m.nextDate) { keep.date = m.nextDate; keep.time = m.nextTime || ''; if (m.next) keep.place = m.next; }
     openForm(null, keep);
-    if (keep.items.length) toast(`남은 할 일 ${keep.items.length}건을 이어받았습니다`);
   }
   else if (id === 'dDone') { m.status = (m.status || '진행중') === '완료' ? '진행중' : '완료'; m.updated = Date.now(); await DB.put(m); await reload(); renderDetail(); }
   else if (id === 'dDel') {
@@ -1384,11 +1302,11 @@ $('#importFile').addEventListener('change', async e => {
 $('#btnCsv').onclick = () => {
   const cols = [['date','날짜'],['time','시작'],['end','종료'],['type','유형'],['place','장소'],['purpose','미팅 목적'],
     ['company','회사'],['dept','부서'],['name','이름'],['title','직책'],['phone','연락처'],['email','이메일'],['addr','주소'],
-    ['ours','우리측'],['theirs','상대측'],['notes','논의 내용'],['decisions','결정사항'],['nextDate','다음 미팅 날짜'],['nextTime','다음 미팅 시간'],['next','다음 미팅 장소·메모'],['due','후속 연락일'],['status','상태'],['memo','내부 메모']];
+    ['ours','우리측'],['theirs','상대측'],['notes','논의 내용'],['due','후속 연락일'],['status','상태'],['memo','내부 메모']];
   const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const rows = [[...cols.map(c => c[1]), '액션아이템'].map(q).join(',')];
+  const rows = [cols.map(c => q(c[1])).join(',')];
   for (const m of [...meetings].sort((a, b) => (b.date || '').localeCompare(a.date || '')))
-    rows.push([...cols.map(c => m[c[0]]), items(m).map(i => `${i.done ? '☑' : '☐'} ${i.task}${i.who ? ' / ' + i.who : ''}${i.due ? ' / ~' + i.due : ''}`).join('\n')].map(q).join(','));
+    rows.push(cols.map(c => q(m[c[0]])).join(','));
   download(`미팅기록_${todayStr()}.csv`, '﻿' + rows.join('\r\n'), 'text/csv');
 };
 
