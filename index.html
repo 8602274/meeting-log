@@ -227,7 +227,7 @@ label.f{display:block;font-size:13px;color:var(--sub);margin:12px 0 6px;font-wei
       <button id="calToday" class="today">오늘</button>
     </div>
     <div class="cal" id="cal"></div>
-    <div class="calLegend">파란 숫자 = 그날 미팅 수 · 빨간 ⏰ = 그날까지 할 일</div>
+    <div class="calLegend">파란 숫자 = 그날 미팅 수 · 📌 = 다음 미팅 예정 · 빨간 ⏰ = 그날까지 할 일</div>
     <div id="calList"></div>
   </section>
 
@@ -302,11 +302,13 @@ label.f{display:block;font-size:13px;color:var(--sub);margin:12px 0 6px;font-wei
 
     <div class="sec">
       <h3>🗓️ 미팅 정보</h3>
+      <label class="f">날짜</label>
+      <div class="row"><input id="fDate" type="date"><button class="btn" id="fNow" type="button" style="flex:0 0 auto">🕒 지금</button></div>
       <div class="row">
-        <div><label class="f">날짜</label><input id="fDate" type="date"></div>
-        <div><label class="f">시작</label><input id="fTime" type="time"></div>
-        <div><label class="f">종료</label><input id="fEnd" type="time"></div>
+        <div><label class="f">시작 시간</label><input id="fTime" type="time" step="300"></div>
+        <div><label class="f">종료 시간</label><input id="fEnd" type="time" step="300"></div>
       </div>
+      <div class="chips" id="fDur" style="margin:8px 0 0;padding:0"></div>
       <label class="f">유형</label>
       <div class="typeSel" id="fType"></div>
       <label class="f">장소</label><input id="fPlace" placeholder="예: 본사 3층 회의실">
@@ -353,7 +355,9 @@ label.f{display:block;font-size:13px;color:var(--sub);margin:12px 0 6px;font-wei
 
     <div class="sec">
       <h3>➡️ 다음 단계</h3>
-      <label class="f">다음 미팅</label><input id="fNext" placeholder="예: 11/10 14:00 본사">
+      <label class="f">다음 미팅 날짜 · 시간</label>
+      <div class="row"><input id="fNextDate" type="date"><input id="fNextTime" type="time" step="300"></div>
+      <label class="f">다음 미팅 장소 · 메모</label><input id="fNext" placeholder="예: 본사 3층 회의실">
       <div class="row">
         <div><label class="f">후속 연락일</label><input id="fDue" type="date"></div>
         <div><label class="f">상태</label><select id="fStatus"><option>진행중</option><option>완료</option><option>보류</option></select></div>
@@ -383,7 +387,7 @@ label.f{display:block;font-size:13px;color:var(--sub);margin:12px 0 6px;font-wei
 <div class="toast" id="toast"></div>
 
 <script>
-const APP_VERSION = 'v1.0.0';
+const APP_VERSION = 'v1.1.0';
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -391,7 +395,9 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7
 const pad = n => String(n).padStart(2, '0');
 const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 const todayStr = () => ymd(new Date());
-const nowHM = () => { const d = new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const nowHM = () => { const d = new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes() - d.getMinutes() % 5)}`; };
+const addMin = (hm, n) => { const [h, m] = hm.split(':').map(Number), t = (h * 60 + m + n + 1440) % 1440; return `${pad(Math.floor(t / 60))}:${pad(t % 60)}`; };
+const nextStr = m => [m.nextDate && fmtDate(m.nextDate), m.nextTime, m.next].filter(Boolean).join(' ');
 const WD = ['일','월','화','수','목','금','토'];
 const fmtDate = s => { if (!s) return ''; const d = new Date(s + 'T12:00'); return `${d.getMonth()+1}/${d.getDate()}(${WD[d.getDay()]})`; };
 const TYPES = [['대면','🤝'],['방문','🚗'],['내방','🏢'],['화상','💻'],['전화','📞']];
@@ -586,20 +592,28 @@ function renderCal(){
   for (const m of meetings) if (m.date) (byDay[m.date] ||= []).push(m);
   for (const {m, it} of allTodos()) if (it.due && !it.done) (dueDay[it.due] ||= []).push({m, it});
   for (const m of meetings) if (m.due && m.status !== '완료') (dueDay[m.due] ||= []).push({m, it: {task: '후속 연락'}});
+  // 다음 미팅 예정 — 그 날짜에 이미 같은 상대 미팅을 기록했으면 빼기
+  const planDay = {};
+  for (const m of meetings) if (m.nextDate && !(byDay[m.nextDate] || []).some(x => x.id !== m.id && x.company === m.company && x.name === m.name))
+    (planDay[m.nextDate] ||= []).push(m);
   let html = WD.map((w, i) => `<div class="wd ${i===0?'sun':i===6?'sat':''}">${w}</div>`).join('');
   const first = new Date(y, mo, 1), days = new Date(y, mo + 1, 0).getDate();
   for (let i = 0; i < first.getDay(); i++) html += `<div class="d out"></div>`;
   for (let d = 1; d <= days; d++) {
     const ds = `${y}-${pad(mo+1)}-${pad(d)}`, dw = (first.getDay() + d - 1) % 7;
-    const n = (byDay[ds] || []).length, du = (dueDay[ds] || []).length;
+    const n = (byDay[ds] || []).length, du = (dueDay[ds] || []).length, pl = (planDay[ds] || []).length;
     html += `<button class="d ${dw===0?'sun':dw===6?'sat':''} ${n?'has':''} ${ds===t?'now':''} ${ds===calSel?'sel':''}" data-d="${ds}">
-      <span class="n">${d}</span>${n ? `<span class="k">${n}</span>` : ''}${du ? `<span class="du">⏰${du > 1 ? du : ''}</span>` : ''}</button>`;
+      <span class="n">${d}</span>${n ? `<span class="k">${n}</span>` : ''}${pl ? `<span class="du" style="color:var(--accent)">📌${pl > 1 ? pl : ''}</span>` : ''}${du ? `<span class="du">⏰${du > 1 ? du : ''}</span>` : ''}</button>`;
   }
   $('#cal').innerHTML = html;
   if (!calSel) { $('#calList').innerHTML = ''; return; }
-  const ms = byDay[calSel] || [], ds = dueDay[calSel] || [];
+  const ms = byDay[calSel] || [], ds = dueDay[calSel] || [], ps = planDay[calSel] || [];
   $('#calList').innerHTML = `<div class="calDay">${fmtDate(calSel)} ${ms.length ? `미팅 ${ms.length}건` : ''}</div>` +
     (ms.map(itemHtml).join('') || '') +
+    (ps.length ? `<div class="calDay" style="color:var(--accent)">📌 예정된 미팅</div>` +
+      ps.map(m => `<div class="todo"><div class="t"><b>${esc(who(m))}</b> ${m.nextTime ? `<span class="badge">${m.nextTime}</span>` : ''}
+        <div class="m" data-open="${m.id}">${esc(m.next || '')}${m.next ? ' · ' : ''}지난 미팅 ${fmtDate(m.date)} ${esc(m.purpose || '')}</div>
+        <button class="btn sm" data-plan="${m.id}" style="margin-top:8px">＋ 이 미팅 기록하기</button></div></div>`).join('') : '') +
     (ds.length ? `<div class="calDay" style="color:var(--late)">⏰ 이날까지 할 일</div>` +
       ds.map(({m, it}) => `<div class="todo"><div class="t"><b>${esc(it.task)}</b><div class="m" data-open="${m.id}">🤝 ${esc(who(m))}</div></div></div>`).join('') : '') +
     (!ms.length ? `<button class="btn block" id="calAdd" style="margin-top:8px">＋ 이날 미팅 기록하기</button>` : '');
@@ -607,6 +621,8 @@ function renderCal(){
 $('#cal').addEventListener('click', e => { const b = e.target.closest('.d[data-d]'); if (!b) return; calSel = calSel === b.dataset.d ? '' : b.dataset.d; renderCal(); });
 $('#calList').addEventListener('click', e => {
   if (e.target.id === 'calAdd') { openForm(null, {date: calSel}); return; }
+  const pb = e.target.closest('[data-plan]');
+  if (pb) { detailId = pb.dataset.plan; renderDetail(); $('#dFollow')?.click(); return; }
   const o = e.target.closest('[data-open]'); if (o) openDetail(o.dataset.open);
 });
 $('#calPrev').onclick = () => { calYM = calYM[1] ? [calYM[0], calYM[1]-1] : [calYM[0]-1, 11]; renderCal(); };
@@ -646,7 +662,8 @@ $('#cardGrid').addEventListener('click', e => { const b = e.target.closest('.bc'
 /* ---------- 입력 폼 ---------- */
 const F = {date:'#fDate', time:'#fTime', end:'#fEnd', place:'#fPlace', purpose:'#fPurpose',
   company:'#fCompany', dept:'#fDept', name:'#fName', title:'#fTitle2', phone:'#fPhone', email:'#fEmail', addr:'#fAddr',
-  ours:'#fOurs', theirs:'#fTheirs', notes:'#fNotes', decisions:'#fDecisions', next:'#fNext', due:'#fDue', status:'#fStatus', memo:'#fMemo'};
+  ours:'#fOurs', theirs:'#fTheirs', notes:'#fNotes', decisions:'#fDecisions', nextDate:'#fNextDate', nextTime:'#fNextTime', next:'#fNext',
+  due:'#fDue', status:'#fStatus', memo:'#fMemo'};
 let formSnap = '';
 
 function openForm(m, preset){
@@ -654,7 +671,7 @@ function openForm(m, preset){
   editing.photos ||= []; editing.items ||= [];
   $('#fTitle').textContent = m ? '미팅 수정' : (preset && preset.company ? '후속 미팅' : '새 미팅');
   for (const [k, sel] of Object.entries(F)) $(sel).value = editing[k] || (k === 'status' ? '진행중' : '');
-  renderType(); renderPhotos(); renderItems(); knownHint();
+  renderType(); renderDur(); renderPhotos(); renderItems(); knownHint();
   $('#formSheet').classList.add('on'); $('#formSheet').scrollTop = 0;
   formSnap = JSON.stringify(collect());
 }
@@ -667,6 +684,19 @@ function renderType(){
   $('#fType').innerHTML = TYPES.map(([t, ic]) => `<button type="button" class="chip ${editing.type===t?'on':''}" data-t="${t}">${ic} ${t}</button>`).join('');
 }
 $('#fType').addEventListener('click', e => { const b = e.target.closest('.chip'); if (!b) return; editing.type = editing.type === b.dataset.t ? '' : b.dataset.t; renderType(); });
+
+// 날짜·시간: [지금] = 오늘·현재 시각, 시작을 고르면 종료는 1시간 뒤로, 소요 시간 칩으로 종료 바로 넣기
+const DURS = [[30, '30분'], [60, '1시간'], [90, '1시간 반'], [120, '2시간']];
+function renderDur(){
+  const s = $('#fTime').value, e = $('#fEnd').value;
+  const cur = s && e ? ((+e.slice(0,2) * 60 + +e.slice(3)) - (+s.slice(0,2) * 60 + +s.slice(3)) + 1440) % 1440 : -1;
+  $('#fDur').innerHTML = s ? DURS.map(([n, l]) => `<button type="button" class="chip ${cur === n ? 'on' : ''}" data-n="${n}">${l}</button>`).join('') : '';
+}
+$('#fNow').onclick = () => { $('#fDate').value = todayStr(); $('#fTime').value = nowHM(); renderDur(); toast('오늘 날짜와 지금 시각을 넣었습니다'); };
+$('#fTime').addEventListener('change', () => { if ($('#fTime').value && !$('#fEnd').value) $('#fEnd').value = addMin($('#fTime').value, 60); renderDur(); });
+$('#fEnd').addEventListener('change', renderDur);
+$('#fDur').addEventListener('click', e => { const b = e.target.closest('.chip'); if (!b || !$('#fTime').value) return; $('#fEnd').value = addMin($('#fTime').value, +b.dataset.n); renderDur(); });
+$('#fNextDate').addEventListener('change', () => { if ($('#fNextDate').value && !$('#fNextTime').value) $('#fNextTime').value = $('#fTime').value || '10:00'; });
 
 function renderPhotos(){
   $('#fPhotos').innerHTML = editing.photos.map((p, i) => `<div class="ph"><img src="${p}" data-v="${i}" alt=""><button type="button" data-x="${i}">✕</button></div>`).join('') +
@@ -802,7 +832,7 @@ function renderDetail(){
         return `<label class="dAct ${it.done ? 'done' : ''} ${lt ? 'late' : ''}"><input type="checkbox" data-i="${i}" ${it.done ? 'checked' : ''}>
           <span>${esc(it.task)} <span class="s">${[it.who && '👤 ' + esc(it.who), it.due && (lt ? '⏰ ' : '') + fmtDate(it.due) + '까지'].filter(Boolean).join(' · ')}</span></span></label>`;
       }).join('')}</div>` : ''}
-    ${m.next || m.due ? `<div class="blk"><h4>➡️ 다음 단계</h4><div class="tx">${m.next ? '다음 미팅: ' + esc(m.next) : ''}${m.next && m.due ? '\n' : ''}${m.due ? '후속 연락일: ' + fmtDate(m.due) + (m.due < t && st !== '완료' ? ' (지남)' : '') : ''}</div></div>` : ''}
+    ${nextStr(m) || m.due ? `<div class="blk"><h4>➡️ 다음 단계</h4><div class="tx">${nextStr(m) ? '다음 미팅: ' + esc(nextStr(m)) : ''}${nextStr(m) && m.due ? '\n' : ''}${m.due ? '후속 연락일: ' + fmtDate(m.due) + (m.due < t && st !== '완료' ? ' (지남)' : '') : ''}</div></div>` : ''}
     ${blk('🔒 내부 메모', m.memo, 'memo')}
     ${hist.length ? `<div class="blk hist"><h4>📂 같은 상대 미팅 이력 ${hist.length}건</h4>${hist.slice(0, 10).map(x => `<a data-h="${x.id}">${fmtDate(x.date)} · ${esc(x.purpose || x.type || '')}${openItems(x).length ? ` <span class="badge">할 일 ${openItems(x).length}</span>` : ''}</a>`).join('')}</div>` : ''}
     <div class="grid2">
@@ -833,6 +863,7 @@ $('#dBody').addEventListener('click', async e => {
     const keep = {}; for (const k of ['company', 'dept', 'name', 'title', 'phone', 'email', 'addr', 'ours', 'theirs', 'place']) keep[k] = m[k] || '';
     keep.photos = [...(m.photos || [])];
     keep.items = openItems(m).map(i => ({...i}));
+    if (m.nextDate) { keep.date = m.nextDate; keep.time = m.nextTime || ''; if (m.next) keep.place = m.next; }
     openForm(null, keep);
     if (keep.items.length) toast(`남은 할 일 ${keep.items.length}건을 이어받았습니다`);
   }
@@ -858,7 +889,7 @@ function minutes(m){
     L.push('', '■ 액션아이템');
     for (const it of items(m)) { const ex = [it.who, it.due && '~' + it.due].filter(Boolean).join(', '); L.push(`  ${it.done ? '☑' : '☐'} ${it.task}${ex ? ` (${ex})` : ''}`); }
   }
-  if (m.next) L.push('', `■ 다음 미팅: ${m.next}`);
+  if (nextStr(m)) L.push('', `■ 다음 미팅: ${[m.nextDate, m.nextTime, m.next].filter(Boolean).join(' ')}`);
   return L.join('\n');
 }
 async function copyText(t){
@@ -912,7 +943,7 @@ $('#importFile').addEventListener('change', async e => {
 $('#btnCsv').onclick = () => {
   const cols = [['date','날짜'],['time','시작'],['end','종료'],['type','유형'],['place','장소'],['purpose','미팅 목적'],
     ['company','회사'],['dept','부서'],['name','이름'],['title','직책'],['phone','연락처'],['email','이메일'],['addr','주소'],
-    ['ours','우리측'],['theirs','상대측'],['notes','논의 내용'],['decisions','결정사항'],['next','다음 미팅'],['due','후속 연락일'],['status','상태'],['memo','내부 메모']];
+    ['ours','우리측'],['theirs','상대측'],['notes','논의 내용'],['decisions','결정사항'],['nextDate','다음 미팅 날짜'],['nextTime','다음 미팅 시간'],['next','다음 미팅 장소·메모'],['due','후속 연락일'],['status','상태'],['memo','내부 메모']];
   const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const rows = [[...cols.map(c => c[1]), '액션아이템'].map(q).join(',')];
   for (const m of [...meetings].sort((a, b) => (b.date || '').localeCompare(a.date || '')))
