@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>폰으로 열기</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<style>
+html,body{margin:0;height:100%;background:#1d4ed8;font-family:"Malgun Gothic",sans-serif;color:#fff}
+body{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;text-align:center}
+#qr{background:#fff;padding:28px;border-radius:28px}
+#qr svg{width:min(60vh,80vw);height:min(60vh,80vw);display:block}
+h1{margin:0;font-size:34px}p{margin:0;font-size:20px;opacity:.9;line-height:1.6}
+</style></head><body>
+<h1>📷 휴대폰 카메라로 찍으세요</h1>
+<div id="qr"></div>
+<p>열리면 메뉴에서 <b>홈 화면에 추가</b> → 바탕화면 아이콘으로 바로 실행<br>https://8602274.github.io/meeting-log/</p>
+<script>
+const q = qrcode(0, 'M'); q.addData('https://8602274.github.io/meeting-log/'); q.make();
+document.getElementById('qr').innerHTML = q.createSvgTag({cellSize: 8, margin: 0, scalable: true});
+</script>
+</body></html>
